@@ -1,0 +1,408 @@
+{
+  "source": "https://sales.femida-ai.ru/documents",
+  "extractedAt": "2026-11-19T10:42:32.271Z",
+  "conditions": [
+    "pension",
+    "social",
+    "selfEmployed",
+    "officialWork",
+    "realEstateDeal",
+    "securedCredit",
+    "mortgage",
+    "creditCards",
+    "ip",
+    "otherDebts",
+    "children",
+    "spouse",
+    "divorce"
+  ],
+  "ruleLabels": {
+    "always": "Нужен всегда",
+    "manual": "Выбрать вручную",
+    "pension": "По анкете: должник получает пенсию",
+    "social": "По анкете: должник получает социальные выплаты",
+    "selfEmployed": "По анкете: должник самозанятый",
+    "officialWork": "По анкете: указана официальная работа",
+    "realEstateDeal": "По анкете: заполнена сделка по недвижимости",
+    "securedCredit": "По анализу КИ: ипотека, залоговый или целевой кредит",
+    "mortgage": "По анкете: у клиента есть ипотека",
+    "creditCards": "По анализу КИ: кредитные карты",
+    "ip": "По анкете: заполнен анализ ИП",
+    "otherDebts": "По анкете: указаны другие задолженности",
+    "children": "По анкете: есть несовершеннолетние дети",
+    "spouse": "По анкете: есть супруг (брак)",
+    "divorce": "По анкете: указан развод"
+  },
+  "documents": [
+    {
+      "id": "gosuslugi-egrn-property",
+      "source": "Госуслуги",
+      "name": "Выписка из ЕГРН (реестра недвижимости) о принадлежащем физическому лицу недвижимом имуществе по РФ или региону прописки в 2023–2026 гг.",
+      "note": "",
+      "rule": "always",
+      "commentable": true
+    },
+    {
+      "id": "gosuslugi-spouse-egrn-property",
+      "source": "Госуслуги",
+      "name": "Супруг: Выписка из ЕГРН (реестра недвижимости) о принадлежащем физическому лицу недвижимом имуществе по РФ или региону прописки в 2023–2026 гг.",
+      "note": "",
+      "rule": "spouse",
+      "commentable": true
+    },
+    {
+      "id": "gosuslugi-ils",
+      "source": "Госуслуги",
+      "name": "Сведения о состоянии индивидуального лицевого счета застрахованного лица",
+      "note": "В поиске на Госуслугах найти «ИЛС»",
+      "rule": "always",
+      "commentable": false
+    },
+    {
+      "id": "gosuslugi-no-conviction",
+      "source": "Госуслуги",
+      "name": "Справка об отсутствии судимости",
+      "note": "На момент подачи заявления в суд не нужна, можно предоставить по готовности",
+      "rule": "always",
+      "commentable": false
+    },
+    {
+      "id": "gosuslugi-credit-history",
+      "source": "Госуслуги",
+      "name": "Кредитные истории из Скоринг бюро, Кредистории, НБКИ",
+      "note": "Скоринг Бюро, Кредистория, НБКИ",
+      "rule": "always",
+      "commentable": false
+    },
+    {
+      "id": "gosuslugi-work-book",
+      "source": "Госуслуги",
+      "name": "Электронная трудовая книжка",
+      "note": "",
+      "rule": "always",
+      "commentable": false
+    },
+    {
+      "id": "gosuslugi-2ndfl-archive",
+      "source": "Госуслуги",
+      "name": "Справки 2-НДФЛ за 2023–2025 гг",
+      "note": "",
+      "rule": "manual",
+      "commentable": false
+    },
+    {
+      "id": "gosuslugi-enforcement",
+      "source": "Госуслуги",
+      "name": "Постановление о возбуждении исполнительного производства",
+      "note": "",
+      "rule": "manual",
+      "commentable": false
+    },
+    {
+      "id": "tax-app-self-employed-status",
+      "source": "Мой налог",
+      "name": "Справка о постановке на учет в качестве самозанятого",
+      "note": "",
+      "rule": "selfEmployed",
+      "commentable": false
+    },
+    {
+      "id": "tax-app-income",
+      "source": "Мой налог",
+      "name": "Справки о доходах за 2023–2026 гг.",
+      "note": "",
+      "rule": "selfEmployed",
+      "commentable": false
+    },
+    {
+      "id": "taxpayer-egrn",
+      "source": "Личный кабинет налогоплательщика",
+      "name": "Выписка из ЕГРН (реестра налогоплательщиков)",
+      "note": "",
+      "rule": "always",
+      "commentable": false
+    },
+    {
+      "id": "taxpayer-bank-accounts",
+      "source": "Личный кабинет налогоплательщика",
+      "name": "Сведения о наличии банковских счетов",
+      "note": "",
+      "rule": "always",
+      "commentable": false
+    },
+    {
+      "id": "taxpayer-spouse-egrn",
+      "source": "Личный кабинет налогоплательщика",
+      "name": "Супруг: Выписка из ЕГРН (реестра налогоплательщиков)",
+      "note": "",
+      "rule": "spouse",
+      "commentable": false
+    },
+    {
+      "id": "sber-accounts",
+      "source": "Сбербанк",
+      "name": "Справка об открытых счетах и вкладах",
+      "note": "В мобильном приложении Сбербанк онлайн в разделе «Сведения для госслужащих»",
+      "rule": "always",
+      "commentable": false
+    },
+    {
+      "id": "sber-statements",
+      "source": "Сбербанк",
+      "name": "Выписки по счетам и дебетовым картам за 2023–2026",
+      "note": "",
+      "rule": "always",
+      "commentable": false
+    },
+    {
+      "id": "credit-loan-agreement",
+      "source": "Кредитные организации",
+      "name": "Кредитный договор",
+      "note": "Для ипотеки, залогового или целевого кредита",
+      "rule": "securedCredit",
+      "commentable": true
+    },
+    {
+      "id": "credit-card-statement",
+      "source": "Кредитные организации",
+      "name": "Выписка за последние 6 месяцев",
+      "note": "Для кредитных карт",
+      "rule": "creditCards",
+      "commentable": true
+    },
+    {
+      "id": "credit-debt-certificate",
+      "source": "Кредитные организации",
+      "name": "Справка о задолженности",
+      "note": "В крайнем случае подойдет скриншот экрана, где видно сумму долга, дату открытия и название кредитора",
+      "rule": "always",
+      "commentable": true
+    },
+    {
+      "id": "credit-payment-receipts",
+      "source": "Кредитные организации",
+      "name": "Чеки или скриншоты, подтверждающие оплату свежих кредитов и займов",
+      "note": "",
+      "rule": "manual",
+      "commentable": true
+    },
+    {
+      "id": "mortgage-loan-agreement",
+      "source": "Ипотека",
+      "name": "Кредитный договор",
+      "note": "",
+      "rule": "mortgage",
+      "commentable": false
+    },
+    {
+      "id": "mortgage-payment-schedule",
+      "source": "Ипотека",
+      "name": "График платежей",
+      "note": "",
+      "rule": "mortgage",
+      "commentable": false
+    },
+    {
+      "id": "mortgage-guarantor-passport",
+      "source": "Ипотека",
+      "name": "Паспорт гаранта по ипотеке",
+      "note": "",
+      "rule": "mortgage",
+      "commentable": false
+    },
+    {
+      "id": "mortgage-guarantor-income",
+      "source": "Ипотека",
+      "name": "Справка о доходе гаранта",
+      "note": "",
+      "rule": "mortgage",
+      "commentable": false
+    },
+    {
+      "id": "ip-account-statement",
+      "source": "Документы ИП",
+      "name": "Выписка по расчетному счету ИП 3 года",
+      "note": "",
+      "rule": "ip",
+      "commentable": false
+    },
+    {
+      "id": "ip-tax-declarations",
+      "source": "Документы ИП",
+      "name": "Налоговые декларации за 3 года",
+      "note": "",
+      "rule": "ip",
+      "commentable": false
+    },
+    {
+      "id": "rent-exclusion-owner-passport",
+      "source": "Данные для исключения аренды",
+      "name": "Паспорт собственника",
+      "note": "",
+      "rule": "manual",
+      "commentable": false
+    },
+    {
+      "id": "rent-exclusion-owner-egrn",
+      "source": "Данные для исключения аренды",
+      "name": "Выписка ЕГРН собственника",
+      "note": "",
+      "rule": "manual",
+      "commentable": false
+    },
+    {
+      "id": "other-passport",
+      "source": "Прочие документы",
+      "name": "Паспорт",
+      "note": "",
+      "rule": "always",
+      "commentable": false
+    },
+    {
+      "id": "other-snils",
+      "source": "Прочие документы",
+      "name": "СНИЛС",
+      "note": "",
+      "rule": "always",
+      "commentable": false
+    },
+    {
+      "id": "other-inn",
+      "source": "Прочие документы",
+      "name": "ИНН",
+      "note": "",
+      "rule": "always",
+      "commentable": false
+    },
+    {
+      "id": "other-spouse-passport",
+      "source": "Прочие документы",
+      "name": "Супруг: Паспорт",
+      "note": "",
+      "rule": "spouse",
+      "commentable": false
+    },
+    {
+      "id": "other-spouse-snils",
+      "source": "Прочие документы",
+      "name": "Супруг: СНИЛС",
+      "note": "",
+      "rule": "spouse",
+      "commentable": false
+    },
+    {
+      "id": "other-spouse-inn",
+      "source": "Прочие документы",
+      "name": "Супруг: ИНН",
+      "note": "",
+      "rule": "spouse",
+      "commentable": false
+    },
+    {
+      "id": "other-marriage-certificate",
+      "source": "Прочие документы",
+      "name": "Свидетельство о заключении брака",
+      "note": "",
+      "rule": "spouse",
+      "commentable": false
+    },
+    {
+      "id": "other-divorce-certificate",
+      "source": "Прочие документы",
+      "name": "Свидетельство о расторжении брака",
+      "note": "",
+      "rule": "divorce",
+      "commentable": false
+    },
+    {
+      "id": "other-children-birth",
+      "source": "Прочие документы",
+      "name": "Свидетельства о рождении детей",
+      "note": "",
+      "rule": "children",
+      "commentable": false
+    },
+    {
+      "id": "other-many-children-id",
+      "source": "Прочие документы",
+      "name": "Удостоверение многодетной семьи",
+      "note": "",
+      "rule": "manual",
+      "commentable": false
+    },
+    {
+      "id": "other-study-certificate",
+      "source": "Прочие документы",
+      "name": "Справка с места учебы",
+      "note": "",
+      "rule": "manual",
+      "commentable": false
+    },
+    {
+      "id": "gosuslugi-real-estate-deals",
+      "source": "Прочие документы",
+      "name": "Договоры купли-продажи по сделкам с недвижимостью",
+      "note": "",
+      "rule": "realEstateDeal",
+      "details": "realEstateDeals",
+      "commentable": false
+    },
+    {
+      "id": "other-debts-proof",
+      "source": "Прочие документы",
+      "name": "Документы, подтверждающие иные задолженности (по ЖКУ, налогам, физическому лицу и т.д.)",
+      "note": "Например: решение суда, справка о задолженности, требование о возврате задолженности, расписка и т.д.",
+      "rule": "otherDebts",
+      "commentable": true
+    },
+    {
+      "id": "other-2ndfl-current",
+      "source": "Прочие документы",
+      "name": "Справка 2-НДФЛ за 2026 год",
+      "note": "Запросить у работодателя",
+      "rule": "officialWork",
+      "commentable": false
+    },
+    {
+      "id": "gosuslugi-pension-amount",
+      "source": "Прочие документы",
+      "name": "Справка о размере пенсии",
+      "note": "",
+      "rule": "pension",
+      "commentable": false
+    },
+    {
+      "id": "gosuslugi-social-amount",
+      "source": "Прочие документы",
+      "name": "Справка о размере социальных выплат",
+      "note": "",
+      "rule": "social",
+      "commentable": false
+    },
+    {
+      "id": "other-pension-id",
+      "source": "Прочие документы",
+      "name": "Пенсионное удостоверение",
+      "note": "",
+      "rule": "pension",
+      "commentable": false
+    },
+    {
+      "id": "other-disability",
+      "source": "Прочие документы",
+      "name": "Справка об инвалидности",
+      "note": "",
+      "rule": "manual",
+      "commentable": false
+    },
+    {
+      "id": "other-diagnosis",
+      "source": "Прочие документы",
+      "name": "Выписка от врача с диагнозом",
+      "note": "",
+      "rule": "manual",
+      "commentable": false
+    }
+  ],
+  "schemaVersion": 1
+}

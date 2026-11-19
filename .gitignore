@@ -1,0 +1,22 @@
+# зависимости
+node_modules/
+
+# сборка
+dist/
+build/
+coverage/
+
+# секреты
+.env
+.env.*
+!.env.example
+
+# логи и временные файлы
+*.log
+*.tmp
+.tmp/
+.DS_Store
+Thumbs.db
+
+# артефакты аудита
+*.har
