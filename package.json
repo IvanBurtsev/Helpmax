@@ -9,13 +9,16 @@
   },
   "scripts": {
     "dev": "tsx watch src/server.ts",
+    "dev:worker": "tsx watch src/worker.ts",
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/server.js",
+    "start:worker": "node dist/worker.js",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
     "check:content": "tsx scripts/check-content.ts",
     "max:check": "tsx scripts/max-check.ts",
-    "migrate": "tsx src/migrate.ts"
+    "migrate": "tsx src/migrate.ts",
+    "worker": "tsx src/worker.ts"
   },
   "devDependencies": {
     "@types/json-logic-js": "^2.0.8",

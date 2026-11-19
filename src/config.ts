@@ -33,6 +33,11 @@ const envSchema = z
 
     // Контент
     CATALOG_PATH: z.string().min(1).default("content/catalog.json"),
+    SCENARIO_PATH: z.string().min(1).default("content/scenarios/example.yaml"),
+
+    // Воркер
+    WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(50).default(5),
+    OUTBOX_SWEEP_MS: z.coerce.number().int().min(1000).default(15000),
 
     // Прочее
     OTEL_EXPORTER_OTLP_ENDPOINT: z.string().url().optional(),

@@ -2,9 +2,10 @@
 
 > Если вы агент, который продолжает работу — сначала прочитайте `AGENTS.md`.
 
-Статус: **ревизия 4 (19.11.2026)**. Есть архитектура, контентная модель,
-проверяемый пример сценария и собранный каркас: конфиг, каталог, движок,
-транспорт MAX и тесты. Хранилища, очередь и интеграция с сайтом — следующие шаги.
+Статус: **ревизия 5 (19.11.2026)**. Есть архитектура, контентная модель,
+проверяемый пример сценария, движок, транспорт MAX, миграции, локальный Docker,
+а также хранилище (Postgres/Redis) и воркер: webhook → очередь → движок →
+outbox → MAX. Интеграция с сайтом, CI и админка — следующие шаги.
 
 > Документация сверена с официальным API MAX 19.11.2026:
 > <https://dev.max.ru/docs-api/>. Базовый URL — `https://platform-api2.max.ru`,
@@ -88,7 +89,7 @@
 ├── migrations/
 │   └── 0001_init.sql       # исполняемая миграция (источник истины для БД)
 ├── Dockerfile              # сборка образа (build → runtime, без dev-зависимостей)
-├── docker-compose.yml      # Postgres, Redis, migrate, app для локального запуска
+├── docker-compose.yml      # Postgres, Redis, migrate, app, worker
 ├── .dockerignore
 ├── scripts/
 │   ├── check-content.ts    # проверка сценария и каталога без сети
@@ -97,12 +98,18 @@
 │   ├── config.ts           # валидация env (zod)
 │   ├── env.ts              # загрузка .env
 │   ├── catalog.ts          # каталог: id→code, name→title, required
-│   ├── server.ts           # Fastify: /healthz, /webhook
+│   ├── app.ts              # Fastify: /healthz, /webhook (собирается с зависимостями)
+│   ├── server.ts           # HTTP-процесс: пишет событие и ставит задачу
+│   ├── worker.ts           # воркер: разбор событий и доставка outbox
+│   ├── queue.ts            # очереди BullMQ (updates, outbox)
+│   ├── updates.ts          # разбор событий MAX: dedupe_key и событие диалога
 │   ├── migrate.ts          # CLI применения миграций
 │   ├── db/                 # pool (pg) и раннер миграций
+│   ├── store/              # Postgres (сессии, raw_updates, outbox) и Redis
+│   ├── dialog/             # оркестратор, экраны, обработка, доставка
 │   ├── engine/             # scenario, conditions, checklist, progress, render, transition
 │   └── max/                # транспорт MAX (SDK): rate-limit, fetch, keyboard, client
-└── test/                   # vitest: контент, движок, транспорт, инфраструктура
+└── test/                   # vitest: контент, движок, транспорт, хранилище, диалог, webhook
 ```
 
 ## Переменные окружения
@@ -127,6 +134,11 @@ LINK_SIGNING_KEY=           # Ed25519/HS256 ключ для ссылок на с
 
 # Контент
 CATALOG_PATH=content/catalog.json
+SCENARIO_PATH=content/scenarios/example.yaml
+
+# Воркер
+WORKER_CONCURRENCY=5
+OUTBOX_SWEEP_MS=15000
 
 # Прочее
 LOG_LEVEL=info
@@ -155,26 +167,35 @@ npm run check:content
 
 ```powershell
 npm run dev            # сервер с watch (tsx), читает .env
+npm run dev:worker     # воркер с watch (tsx)
 npm run typecheck      # tsc по src + test + scripts
-npm run test           # vitest (контент, движок, транспорт)
+npm run test           # vitest (контент, движок, транспорт, хранилище, диалог, webhook)
 npm run build          # сборка src → dist
 npm run start          # запуск собранного сервера
+npm run start:worker   # запуск собранного воркера
 npm run check:content  # проверка сценария и каталога без сети
 npm run max:check      # проверка токена MAX (GET /me, токен не выводится)
 npm run migrate        # применить миграции к DATABASE_URL
 ```
 
+Сервер (`server.ts`) и воркер (`worker.ts`) — разные процессы: HTTP отдаёт 200
+сразу, а разбор события и отправка сообщений идут в воркере. Локально нужны
+`DATABASE_URL` и `REDIS_URL` (поднять: `docker compose up -d postgres redis`),
+воркеру ещё и `MAX_BOT_TOKEN`.
+
 ### Локальный запуск в Docker
 
-Postgres, Redis и приложение поднимаются одной командой; миграции применяются
-автоматически перед стартом приложения (сервис `migrate`, затем `app`):
+Postgres, Redis, приложение и воркер поднимаются одной командой; миграции
+применяются автоматически перед стартом (сервис `migrate`, затем `app` и
+`worker`):
 
 ```powershell
 docker compose up --build
 ```
 
 Секреты Compose берёт из `.env` рядом с `docker-compose.yml`. Локально
-`NODE_ENV=development`, поэтому токен MAX необязателен. Отдельно миграции:
+`NODE_ENV=development`, поэтому токен MAX необязателен — но без него воркер
+не запустится (он отвечает за отправку сообщений). Отдельно миграции:
 
 ```powershell
 docker compose run --rm migrate

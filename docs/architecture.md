@@ -63,7 +63,7 @@ sequenceDiagram
 
   MAX->>GW: POST /webhook (X-Max-Bot-Api-Secret)
   GW->>GW: timingSafeEqual(secret)
-  GW->>GW: zod-валидация Update
+  GW->>GW: isUpdateLike(body) — это событие MAX?
   GW->>PG: INSERT raw_update (dedupe_key)
   alt дубль
     PG-->>GW: conflict
@@ -72,9 +72,9 @@ sequenceDiagram
     GW->>R: enqueue {chat_id, update}
     GW-->>MAX: 200 OK (p95 < 300 мс)
     R->>W: job
-    W->>PG: load session FOR UPDATE
-    W->>W: transition(state, update)
-    W->>PG: save state + answers + outbox
+    W->>PG: load session (optimistic lock)
+    W->>W: runDialog(state, event)
+    W->>PG: save state (version match) + answers + outbox
     W->>MAX: POST /messages (из outbox)
   end
 ```
@@ -187,6 +187,40 @@ UPDATE sessions SET state = $3, version = version + 1 WHERE id = $1 AND version 
 Всё проверяется без сети: лимит — с фейковыми часами, транспорт — с подменным
 `fetch`. Токен проверяется командой `npm run max:check` (GET `/me`).
 
+## Обработка события и воркер
+
+Путь события собран из небольших модулей с явными зависимостями. Логика,
+которую нужно проверять, отделена от I/O, поэтому тесты идут без Postgres,
+Redis и сети.
+
+| Модуль | Ответственность |
+|---|---|
+| `src/app.ts` | Fastify: `/healthz`, `/webhook`. Проверка секрета (`timingSafeEqual`), запись в `raw_updates`, постановка задачи. Собирается с зависимостями — маршруты тестируются через `inject()` |
+| `src/server.ts` | HTTP-процесс: пул Postgres, соединение Redis, очередь; graceful shutdown |
+| `src/updates.ts` | Разбор события MAX: `dedupe_key`, `late`, диалоговое событие. Чистые функции |
+| `src/dialog/orchestrator.ts` | `runDialog`: состояние + событие → новое состояние и экраны. Ни БД, ни сети |
+| `src/dialog/screens.ts` | Экраны → задания outbox: клавиатура, чек-лист, `idempotency_key` |
+| `src/dialog/process.ts` | Обработка записи `raw_updates`: пользователь, сессия, `saveState` с оптимистичной блокировкой, ответы, outbox |
+| `src/dialog/deliver.ts` | Доставка outbox через MAX: успех, повтор с backoff, `dead` при исчерпании попыток |
+| `src/store/` | Репозитории Postgres (`sessions`, `raw_updates`, `outbox`) над `Queryable`; соединение Redis и локи |
+| `src/worker.ts` | Два BullMQ-воркера (`updates`, `outbox`) + периодическая доставка как страховка |
+
+Решения:
+
+- **Ответ на колбэк** отправляется сразу в воркере, чтобы погасить индикатор
+  ожидания в MAX; ошибка не критична.
+- **Оптимистичная блокировка**: `saveState` пишет только при совпадении `version`.
+  При конфликте сессия перечитывается и переход повторяется (до 3 раз).
+- **Идемпотентность отправки**: `outbox.idempotency_key = sourceKey:stepId:index`,
+  поэтому повторная обработка того же события не создаёт второй экран.
+- **Дедупликация**: `raw_updates.dedupe_key` уникален, а `jobId` задачи равен id
+  записи — повторный webhook не создаёт ни строку, ни задачу.
+- **Отправка только через outbox**: все сетевые вызовы MAX (кроме ответа на
+  колбэк) идут из `deliver.ts`, где действуют лимит частоты и повторы транспорта.
+- **Возврат зависших отправок**: `claim` берёт и записи в статусе `sending`
+  старше 2 минут, поэтому падение воркера между отправкой и отметкой не теряет
+  сообщение.
+
 ## Асинхронность: что именно проверяем
 
 | Гарантия | Как достигаем | Как проверяем |
@@ -217,12 +251,14 @@ raw_updates, outbox, audit. Схема — в `db/schema.sql`.
 Партиционирование `raw_updates` и `audit_log` по месяцу — после 10 млн строк.
 
 ### Redis
+Сейчас: очередь BullMQ и распределённые локи (`src/store/redis.ts`). Соединение
+создаётся с `maxRetriesPerRequest: null` — требование BullMQ.
+
+Дальше по плану:
 - сессии hot-кэш (30 мин sliding, write-through);
-- очередь BullMQ;
 - rate limit счётчики;
 - идемпотентные ключи отправки;
-- кэш рендера чек-листа;
-- распределённые локи по `chat_id`.
+- кэш рендера чек-листа.
 
 ### S3
 PDF-чек-листы, сгенерированные один раз, ссылка с TTL 7 дней.

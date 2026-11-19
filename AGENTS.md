@@ -2,9 +2,10 @@
 
 Проект: MAX-бот «Фемида AI» — подбор документов для клиента.
 Рабочая папка: `C:\projects`. Язык общения с пользователем: **русский**.
-Статус на 19.11.2026: **ревизия 4 — каркас, движок и транспорт MAX готовы,
-есть тесты**. Осталось: хранилища (Postgres/Redis), очередь, воркер, интеграция
-с сайтом. Что менялось — в `docs/review-2026-11-19.md`.
+Статус на 19.11.2026: **ревизия 5 — есть каркас, движок, транспорт MAX,
+миграции, Docker, хранилище (Postgres/Redis) и воркер**. Путь
+webhook → очередь → движок → outbox → MAX собран и покрыт тестами. Осталось:
+интеграция с сайтом, админка, CI. Что менялось — в `docs/review-2026-11-19.md`.
 
 ---
 
@@ -16,9 +17,11 @@
    логике. Каталог выгружен в `content/catalog.json`.
 3. Документация готова: `README.md`, `docs/*.md`, `db/schema.sql`,
    `content/scenarios/example.yaml`.
-4. Собран каркас и движок (шаги 2–3): Fastify-webhook, каталог, data-driven
-   движок, транспорт MAX, тесты. Осталось: Postgres/Redis, очередь, воркер,
-   интеграция с сайтом и один сценарий «банкротство физлица» целиком.
+4. Собран каркас, движок и транспорт (шаги 2–3): Fastify-webhook, каталог,
+   data-driven движок, транспорт MAX. Плюс инфраструктура и путь события:
+   миграции, Docker, хранилище (Postgres/Redis) и воркер
+   (`webhook → updates → движок → outbox → MAX`). Осталось: интеграция с сайтом,
+   админка, CI и один сценарий «банкротство физлица» целиком.
 5. Пароль от сайта в проекте не хранится и не должен. Для серверных вызовов нужны
    два разных токена: `SITE_SERVICE_TOKEN` (бот → сайт) и `INTERNAL_API_TOKEN`
    (сайт → бот). Запросить у команды сайта.
@@ -160,8 +163,9 @@ POST /api/rules-chat
 C:\projects
 ├── AGENTS.md                     ← этот файл
 ├── README.md                     обзор, стек, env
-├── package.json                  скрипты: dev, build, start, typecheck, test,
-│                                 check:content, max:check
+├── package.json                  скрипты: dev, dev:worker, build, start,
+│                                 start:worker, worker, typecheck, test,
+│                                 check:content, max:check, migrate
 ├── .env.example                  шаблон env, без секретов
 ├── .gitignore
 ├── docs/
@@ -186,16 +190,23 @@ C:\projects
 │   ├── config.ts                 валидация env (zod), падение на старте
 │   ├── env.ts                    загрузка .env (process.loadEnvFile)
 │   ├── catalog.ts                каталог: id→code, name→title, required
-│   ├── server.ts                 Fastify: /healthz, /webhook
+│   ├── app.ts                    Fastify: /healthz, /webhook (с зависимостями)
+│   ├── server.ts                 HTTP-процесс: пишет событие, ставит задачу
+│   ├── worker.ts                 воркер: разбор событий + доставка outbox
+│   ├── queue.ts                  очереди BullMQ (updates, outbox)
+│   ├── updates.ts                разбор событий MAX: dedupe_key, событие
 │   ├── migrate.ts                CLI применения миграций
 │   ├── db/                       pool (pg) + раннер миграций
+│   ├── store/                    Postgres (сессии, raw_updates, outbox) + Redis
+│   ├── dialog/                   оркестратор, экраны, обработка, доставка
 │   ├── engine/                   движок: scenario, conditions, checklist,
 │   │                             progress, render, transition
 │   └── max/                      транспорт MAX (SDK): rate-limit, fetch,
 │                                 keyboard, client
-├── test/                         vitest: контент, движок, транспорт, инфра
+├── test/                         vitest: контент, движок, транспорт, хранилище,
+│                                 диалог, webhook, инфра
 ├── Dockerfile                    образ (build → runtime, без dev-зависимостей)
-├── docker-compose.yml            Postgres, Redis, migrate, app
+├── docker-compose.yml            Postgres, Redis, migrate, app, worker
 ├── .dockerignore
 ├── tsconfig.json                 проверка типов (src + test + scripts)
 └── tsconfig.build.json           сборка src → dist
@@ -237,8 +248,12 @@ npx tsc --init
 - [x] `scripts/check-content.ts` — проверка сценария и каталога без сети.
 - [x] `migrations/` + `src/migrate.ts` — раннер миграций (из `db/schema.sql`).
 - [x] `Dockerfile` + `docker-compose.yml` — локальные Postgres/Redis и прогон.
-- [ ] `src/store/` — Postgres (сессии, raw_updates, outbox), Redis (кэш, лимиты).
-- [ ] `src/worker.ts` — обработка очереди, outbox.
+- [x] `src/store/` — Postgres (сессии, raw_updates, outbox), Redis (соединение, локи).
+- [x] `src/updates.ts` — разбор событий MAX: `dedupe_key` + событие диалога.
+- [x] `src/dialog/` — оркестратор, экраны, обработка события, доставка outbox.
+- [x] `src/queue.ts` + `src/worker.ts` — очереди BullMQ и воркер.
+- [x] `src/app.ts` + `src/server.ts` — webhook пишет событие и ставит задачу.
+- [ ] `src/store/` — кэш рендера и лимиты на Redis (сейчас только соединение и локи).
 
 Обязательно с первого дня:
 - проверка `X-Max-Bot-Api-Secret` через `timingSafeEqual`;

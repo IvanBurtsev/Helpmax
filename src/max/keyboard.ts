@@ -10,25 +10,30 @@ export const NAV_RESTART = "nav:restart";
 
 export interface CallbackPayload {
   stepId: string;
-  value: string;
+  value: string | string[];
 }
 
 export type PayloadEncoder = (payload: CallbackPayload) => string;
 
 // Короткий payload: JSON переживает любые id вариантов и не ломается на «:».
+// value может быть строкой (choice/confirm) или массивом (multi).
 export const encodeAnswerPayload: PayloadEncoder = (payload) =>
   JSON.stringify({ s: payload.stepId, v: payload.value });
 
 export type DecodedCallback =
-  | { kind: "answer"; stepId: string; value: string }
+  | { kind: "answer"; stepId: string; value: string | string[] }
   | { kind: "nav"; action: "back" | "restart" };
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "string");
+}
 
 export function decodeCallbackPayload(raw: string): DecodedCallback | undefined {
   if (raw === NAV_BACK) return { kind: "nav", action: "back" };
   if (raw === NAV_RESTART) return { kind: "nav", action: "restart" };
   try {
     const parsed = JSON.parse(raw) as { s?: unknown; v?: unknown };
-    if (typeof parsed.s === "string" && typeof parsed.v === "string") {
+    if (typeof parsed.s === "string" && (typeof parsed.v === "string" || isStringArray(parsed.v))) {
       return { kind: "answer", stepId: parsed.s, value: parsed.v };
     }
   } catch {

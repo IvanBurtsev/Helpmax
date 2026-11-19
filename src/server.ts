@@ -1,40 +1,48 @@
-import { timingSafeEqual } from "node:crypto";
-import Fastify from "fastify";
+import { buildApp } from "./app.js";
 import { loadConfig } from "./config.js";
+import { createPool } from "./db/pool.js";
 import { loadDotEnv } from "./env.js";
+import { createUpdatesQueue, enqueueUpdate } from "./queue.js";
+import { createStore } from "./store/index.js";
+import { createRedis } from "./store/redis.js";
 
-// Каркас (шаг 3 плана). Пока только приём webhook и health-check.
-// Очередь, движок и хранилища добавятся следующими шагами.
+// HTTP-процесс: принимает webhook MAX, пишет событие в Postgres и ставит
+// задачу в Redis. Тяжёлая обработка и отправка — в воркере (src/worker.ts).
 
 loadDotEnv();
-
 const config = loadConfig();
 
-const app = Fastify({
-  logger: { level: config.LOG_LEVEL },
-});
-
-function safeEqual(a: string, b: string): boolean {
-  const bufA = Buffer.from(a);
-  const bufB = Buffer.from(b);
-  if (bufA.length !== bufB.length) return false;
-  return timingSafeEqual(bufA, bufB);
+if (!config.DATABASE_URL || !config.REDIS_URL) {
+  console.error(
+    "Нужны DATABASE_URL и REDIS_URL. Для локального запуска: docker compose up -d postgres redis",
+  );
+  process.exit(1);
 }
 
-app.get("/healthz", async () => ({ status: "ok" }));
+const pool = createPool(config.DATABASE_URL);
+const store = createStore(pool);
+const redis = createRedis(config.REDIS_URL);
+const updatesQueue = createUpdatesQueue(redis);
 
-// MAX присылает сюда события. Проверяем секрет и отвечаем 200 сразу;
-// обработка события — асинхронно (очередь, шаг 3).
-app.post("/webhook", async (request, reply) => {
-  const secret = config.MAX_WEBHOOK_SECRET ?? "";
-  const got = request.headers["x-max-bot-api-secret"];
-
-  if (!secret || typeof got !== "string" || !safeEqual(got, secret)) {
-    return reply.code(403).send({ ok: false });
-  }
-
-  return reply.code(200).send({ ok: true });
+const app = buildApp({
+  config,
+  rawUpdates: store.rawUpdates,
+  enqueueUpdate: (id) => enqueueUpdate(updatesQueue, id),
 });
+
+async function shutdown(signal: string): Promise<void> {
+  app.log.info(`остановка по ${signal}`);
+  await app.close();
+  await updatesQueue.close();
+  await redis.quit();
+  await pool.end();
+}
+
+for (const signal of ["SIGINT", "SIGTERM"] as const) {
+  process.once(signal, () => {
+    void shutdown(signal).then(() => process.exit(0));
+  });
+}
 
 try {
   await app.listen({ port: config.PORT, host: "0.0.0.0" });

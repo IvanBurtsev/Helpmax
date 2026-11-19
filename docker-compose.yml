@@ -64,6 +64,21 @@ services:
       migrate:
         condition: service_completed_successfully
 
+  # Воркер: разбор событий и отправка сообщений. Нужен MAX_BOT_TOKEN.
+  # restart: "no" — чтобы без токена не было цикла перезапусков.
+  worker:
+    build: .
+    command: ["node", "dist/worker.js"]
+    environment: *app-env
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
 volumes:
   pgdata:
   redisdata:
