@@ -201,9 +201,11 @@ Redis и сети.
 | `src/dialog/orchestrator.ts` | `runDialog`: состояние + событие → новое состояние и экраны. Ни БД, ни сети |
 | `src/dialog/screens.ts` | Экраны → задания outbox: клавиатура, чек-лист, `idempotency_key` |
 | `src/dialog/process.ts` | Обработка записи `raw_updates`: пользователь, сессия, `saveState` с оптимистичной блокировкой, ответы, outbox |
+| `src/dialog/handle.ts` | Общий обработчик записи: ответ на колбэк, `processRawUpdate`, отметка статуса. Используют воркер и long polling |
 | `src/dialog/deliver.ts` | Доставка outbox через MAX: успех, повтор с backoff, `dead` при исчерпании попыток |
 | `src/store/` | Репозитории Postgres (`sessions`, `raw_updates`, `outbox`) над `Queryable`; соединение Redis и локи |
 | `src/worker.ts` | Два BullMQ-воркера (`updates`, `outbox`) + периодическая доставка как страховка |
+| `src/poll.ts` | Тот же путь без БД: события из `getUpdates`, хранилище в памяти. Прод-режим — `node dist/poll.js` |
 
 Решения:
 

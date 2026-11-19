@@ -2,12 +2,13 @@
 
 > Если вы агент, который продолжает работу — сначала прочитайте `AGENTS.md`.
 
-Статус: **ревизия 6 (19.11.2026)**. Есть архитектура, контентная модель,
+Статус: **ревизия 8 (19.11.2026)**. Есть архитектура, контентная модель,
 проверяемый пример сценария, движок, транспорт MAX, миграции, локальный Docker,
 хранилище (Postgres/Redis) и воркер: webhook → очередь → движок → outbox → MAX.
 Путь собран и проверен на живой БД (`npm run check:db`). Есть локальный запуск
-без MAX (`npm run sim`) и боевой тест через long polling (`npm run poll`).
-Интеграция с сайтом, CI и админка — следующие шаги.
+без MAX (`npm run sim`) и боевой тест через long polling (`npm run poll`, в проде
+`node dist/poll.js`). Проект развёрнут на сервере (дополнительно, ничего чужого
+не трогаем). Интеграция с сайтом, CI и админка — следующие шаги.
 
 > Документация сверена с официальным API MAX 19.11.2026:
 > <https://dev.max.ru/docs-api/>. Базовый URL — `https://platform-api2.max.ru`,
@@ -97,7 +98,6 @@
 │   ├── check-content.ts    # проверка сценария и каталога без сети
 │   ├── max-check.ts        # проверка токена MAX (GET /me)
 │   ├── sim.ts              # симулятор диалога в терминале (без БД и сети)
-│   ├── poll.ts             # запуск бота через long polling MAX (без БД)
 │   └── smoke.ts            # смоук-тест пути на живой БД (доставка — подменная)
 ├── src/
 │   ├── config.ts           # валидация env (zod)
@@ -106,17 +106,18 @@
 │   ├── app.ts              # Fastify: /healthz, /webhook (собирается с зависимостями)
 │   ├── server.ts           # HTTP-процесс: пишет событие и ставит задачу
 │   ├── worker.ts           # воркер: разбор событий и доставка outbox
+│   ├── poll.ts             # бот через long polling MAX (без БД; тот же путь)
 │   ├── queue.ts            # очереди BullMQ (updates, outbox)
 │   ├── updates.ts          # разбор событий MAX: dedupe_key и событие диалога
 │   ├── migrate.ts          # CLI применения миграций
 │   ├── db/                 # pool (pg) и раннер миграций
 │   ├── store/              # Postgres (сессии, raw_updates, outbox, scenarios),
 │   │                       #   Redis и хранилище в памяти (memory.ts)
-│   ├── dialog/             # оркестратор, экраны, обработка, доставка
+│   ├── dialog/             # оркестратор, экраны, обработка, доставка, handle
 │   ├── engine/             # scenario, conditions, checklist, progress, render, transition
 │   └── max/                # транспорт MAX (SDK): rate-limit, fetch, keyboard, client
 └── test/                   # vitest: контент, движок, транспорт, хранилище, диалог,
-                            #   очередь, webhook, память
+                            #   очередь, webhook, память, обработка
 ```
 
 ## Переменные окружения
@@ -189,6 +190,7 @@ npm run max:check      # проверка токена MAX (GET /me, токен 
 npm run migrate        # применить миграции к DATABASE_URL
 npm run sim            # симулятор диалога в терминале (без БД, Redis и MAX)
 npm run poll           # бот через long polling MAX (без БД; нужен MAX_BOT_TOKEN)
+npm run start:poll     # то же на собранном dist/poll.js (прод)
 npm run check:db       # смоук-тест пути на живой БД (без сети MAX)
 ```
 
@@ -219,6 +221,8 @@ npm run check:db       # смоук-тест пути на живой БД (бе
 
    Откройте бота в MAX и нажмите «Начать». Работает тот же путь события и
    доставка, но состояние держится в памяти (Postgres/Redis не нужны).
+   В проде тот же раннер запускается как `node dist/poll.js` (`npm run
+   start:poll`) — без dev-зависимостей.
 
 3. **Боевой путь (webhook + воркер)** — как в проде:
 

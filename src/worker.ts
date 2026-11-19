@@ -3,7 +3,7 @@ import { loadCatalog } from "./catalog.js";
 import { loadConfig } from "./config.js";
 import { createPool } from "./db/pool.js";
 import { deliverOutbox } from "./dialog/deliver.js";
-import { processRawUpdate } from "./dialog/process.js";
+import { handleRawUpdate } from "./dialog/handle.js";
 import { loadScenario } from "./engine/scenario.js";
 import { loadDotEnv } from "./env.js";
 import { MaxClient } from "./max/client.js";
@@ -54,43 +54,14 @@ function describe(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function readCallbackId(payload: unknown): string | undefined {
-  if (typeof payload !== "object" || payload === null) return undefined;
-  const callback = (payload as { callback?: unknown }).callback;
-  if (typeof callback !== "object" || callback === null) return undefined;
-  const id = (callback as { callback_id?: unknown }).callback_id;
-  return typeof id === "string" ? id : undefined;
-}
-
-// Ответ на нажатие кнопки останавливает индикатор ожидания в MAX. Ошибку не
-// считаем фатальной: экран пользователь уже получит через outbox.
-async function answerCallback(payload: unknown): Promise<void> {
-  const callbackId = readCallbackId(payload);
-  if (!callbackId) return;
-  try {
-    await max.answerCallback({ callbackId });
-  } catch {
-    // ничего не делаем: необязательный шаг
-  }
-}
-
 const updatesWorker = new Worker<UpdateJobData>(
   QUEUE_UPDATES,
   async (job) => {
     const raw = await store.rawUpdates.get(job.data.rawUpdateId);
     if (!raw || raw.status !== "new") return;
 
-    if (raw.updateType === "message_callback") await answerCallback(raw.payload);
-
-    try {
-      const result = await processRawUpdate({ store, scenario, catalog }, raw);
-      const status = result.status === "done" ? "done" : result.status === "skipped" ? "skipped" : "failed";
-      await store.rawUpdates.markProcessed(raw.id, status, result.reason);
-      if (result.status === "done") await enqueueOutboxDelivery(outboxQueue, "update");
-    } catch (error) {
-      await store.rawUpdates.markProcessed(raw.id, "failed", describe(error));
-      throw error;
-    }
+    const result = await handleRawUpdate({ store, scenario, catalog, max }, raw);
+    if (result.status === "done") await enqueueOutboxDelivery(outboxQueue, "update");
   },
   { connection: updatesRedis, concurrency: config.WORKER_CONCURRENCY },
 );

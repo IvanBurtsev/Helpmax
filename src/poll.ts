@@ -1,23 +1,24 @@
 #!/usr/bin/env node
-// Локальный запуск бота через long polling MAX: публичный webhook не нужен,
-// Postgres и Redis не нужны — состояние держится в памяти. Достаточно токена.
+// Запуск бота через long polling MAX: публичный webhook не нужен, Postgres и
+// Redis не нужны — состояние держится в памяти. Достаточно токена.
 //
-//   npm run poll
+//   npm run poll          # dev (tsx)
+//   node dist/poll.js     # прод (после npm run build)
 //
 // Логика та же, что в бою: то же событие разбирается `parseUpdate`, тот же
 // движок (`processRawUpdate`) и та же доставка (`deliverOutbox`). Отличается
 // только источник событий (getUpdates вместо webhook) и хранилище (память).
 // Боевой режим — server + worker (webhook + Postgres/Redis).
 
-import { loadCatalog } from "../src/catalog.js";
-import { loadConfig } from "../src/config.js";
-import { deliverOutbox } from "../src/dialog/deliver.js";
-import { processRawUpdate } from "../src/dialog/process.js";
-import { loadScenario } from "../src/engine/scenario.js";
-import { loadDotEnv } from "../src/env.js";
-import { MaxClient } from "../src/max/client.js";
-import { createMemoryStore } from "../src/store/memory.js";
-import { isUpdateLike, parseUpdate } from "../src/updates.js";
+import { loadCatalog } from "./catalog.js";
+import { loadConfig } from "./config.js";
+import { deliverOutbox } from "./dialog/deliver.js";
+import { handleRawUpdate } from "./dialog/handle.js";
+import { loadScenario } from "./engine/scenario.js";
+import { loadDotEnv } from "./env.js";
+import { MaxClient } from "./max/client.js";
+import { createMemoryStore } from "./store/memory.js";
+import { isUpdateLike, parseUpdate } from "./updates.js";
 
 loadDotEnv();
 const config = loadConfig();
@@ -39,7 +40,11 @@ const max = new MaxClient({
   retry: { timeoutMs: 40_000 },
 });
 
-const me = await max.getMe();
+const me = await max.getMe().catch((error: unknown): never => {
+  console.error(`Не удалось подключиться к MAX: ${describe(error)}`);
+  console.error("Проверьте MAX_BOT_TOKEN и MAX_API_BASE (npm run max:check).");
+  process.exit(1);
+});
 console.log(`Бот: ${me.first_name}${me.username ? ` (@${me.username})` : ""}, id ${me.user_id}`);
 console.log(`Сценарий: ${scenario.title} (${scenario.code} v${scenario.version})`);
 console.log(`Каталог: ${catalog.documents.length} документов, ${catalog.conditions.length} условий.`);
@@ -51,14 +56,6 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
     stopped = true;
     console.log(`\nостановка по ${signal}…`);
   });
-}
-
-function readCallbackId(payload: unknown): string | undefined {
-  if (typeof payload !== "object" || payload === null) return undefined;
-  const callback = (payload as { callback?: unknown }).callback;
-  if (typeof callback !== "object" || callback === null) return undefined;
-  const id = (callback as { callback_id?: unknown }).callback_id;
-  return typeof id === "string" ? id : undefined;
 }
 
 function describe(error: unknown): string {
@@ -82,21 +79,7 @@ async function handle(update: unknown): Promise<void> {
   const raw = await store.rawUpdates.get(inserted.id);
   if (!raw) return;
 
-  // Ответ на нажатие кнопки гасит индикатор ожидания в MAX; ошибка не критична.
-  if (raw.updateType === "message_callback") {
-    const callbackId = readCallbackId(raw.payload);
-    if (callbackId) {
-      try {
-        await max.answerCallback({ callbackId });
-      } catch {
-        // необязательный шаг
-      }
-    }
-  }
-
-  const result = await processRawUpdate({ store, scenario, catalog }, raw);
-  const status = result.status === "done" ? "done" : result.status === "skipped" ? "skipped" : "failed";
-  await store.rawUpdates.markProcessed(raw.id, status, result.reason);
+  const result = await handleRawUpdate({ store, scenario, catalog, max }, raw);
 
   if (result.status === "done") {
     const delivery = await deliverOutbox({ outbox: store.outbox, max });

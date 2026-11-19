@@ -2,11 +2,13 @@
 
 Проект: MAX-бот «Фемида AI» — подбор документов для клиента.
 Рабочая папка: `C:\projects`. Язык общения с пользователем: **русский**.
-Статус на 19.11.2026: **ревизия 6 — каркас, движок, транспорт MAX, миграции,
+Статус на 19.11.2026: **ревизия 8 — каркас, движок, транспорт MAX, миграции,
 Docker, хранилище (Postgres/Redis) и воркер готовы**. Путь
 webhook → очередь → движок → outbox → MAX собран, покрыт тестами и проверен на
 живой БД (`npm run check:db`). Есть локальный запуск без MAX (`npm run sim`) и
-боевой тест через long polling (`npm run poll`). Осталось: интеграция с сайтом,
+боевой тест через long polling (`npm run poll`, в проде `node dist/poll.js`).
+Проект развёрнут на сервере `45.152.202.114` в `/root/helpmax` — **только
+добавление, чужие файлы и сервисы не трогаем**. Осталось: интеграция с сайтом,
 админка, CI. Что менялось — в `docs/review-2026-11-19.md`.
 
 ---
@@ -190,7 +192,6 @@ C:\projects
 │   ├── check-content.ts          проверка сценария и каталога
 │   ├── max-check.ts              проверка токена MAX (GET /me)
 │   ├── sim.ts                    симулятор диалога в терминале (без БД и сети)
-│   ├── poll.ts                   запуск бота через long polling MAX (без БД)
 │   └── smoke.ts                  смоук-тест пути на живой БД (доставка — подменная)
 ├── src/
 │   ├── config.ts                 валидация env (zod), падение на старте
@@ -199,19 +200,20 @@ C:\projects
 │   ├── app.ts                    Fastify: /healthz, /webhook (с зависимостями)
 │   ├── server.ts                 HTTP-процесс: пишет событие, ставит задачу
 │   ├── worker.ts                 воркер: разбор событий + доставка outbox
+│   ├── poll.ts                   бот через long polling MAX (без БД; тот же путь)
 │   ├── queue.ts                  очереди BullMQ (updates, outbox)
 │   ├── updates.ts                разбор событий MAX: dedupe_key, событие
 │   ├── migrate.ts                CLI применения миграций
 │   ├── db/                       pool (pg) + раннер миграций
 │   ├── store/                    Postgres (сессии, raw_updates, outbox,
 │   │                             scenarios), Redis, хранилище в памяти (memory.ts)
-│   ├── dialog/                   оркестратор, экраны, обработка, доставка
+│   ├── dialog/                   оркестратор, экраны, обработка, доставка, handle
 │   ├── engine/                   движок: scenario, conditions, checklist,
 │   │                             progress, render, transition
 │   └── max/                      транспорт MAX (SDK): rate-limit, fetch,
 │                                 keyboard, client
 ├── test/                         vitest: контент, движок, транспорт, хранилище,
-│                                 диалог, очередь, webhook, память, инфра
+│                                 диалог, очередь, webhook, память, обработка, инфра
 ├── Dockerfile                    образ (build → runtime, без dev-зависимостей)
 ├── docker-compose.yml            Postgres, Redis, migrate, app, worker
 ├── .dockerignore
@@ -258,9 +260,11 @@ npx tsc --init
 - [x] `src/store/` — Postgres (сессии, raw_updates, outbox, scenarios), Redis (соединение, локи).
 - [x] `src/store/scenarios.ts` — регистрация версии сценария (на неё ссылается sessions).
 - [x] `src/store/memory.ts` — хранилище в памяти для локального запуска и тестов.
-- [x] `scripts/sim.ts` / `poll.ts` / `smoke.ts` — симулятор, long polling, смоук на БД.
+- [x] `scripts/sim.ts` / `smoke.ts` — симулятор диалога и смоук на живой БД.
+- [x] `src/poll.ts` — long polling MAX без БД (тот же путь, что в бою).
 - [x] `src/updates.ts` — разбор событий MAX: `dedupe_key` + событие диалога.
-- [x] `src/dialog/` — оркестратор, экраны, обработка события, доставка outbox.
+- [x] `src/dialog/` — оркестратор, экраны, обработка события, доставка outbox,
+  общий обработчик события `handle.ts` (для воркера и long polling).
 - [x] `src/queue.ts` + `src/worker.ts` — очереди BullMQ и воркер.
 - [x] `src/app.ts` + `src/server.ts` — webhook пишет событие и ставит задачу.
 - [ ] `src/store/` — кэш рендера и лимиты на Redis (сейчас только соединение и локи).
