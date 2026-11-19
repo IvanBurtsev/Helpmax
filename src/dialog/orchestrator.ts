@@ -1,14 +1,18 @@
 import type { Catalog } from "../catalog.js";
-import { buildChecklist, type Checklist } from "../engine/checklist.js";
-import { evaluateConditionsForCatalog } from "../engine/conditions.js";
 import { renderStep, type StepView } from "../engine/render.js";
 import { isTerminalStep, stepsById, type Scenario } from "../engine/scenario.js";
 import { initialState, transition, type AnswerValue, type SessionState } from "../engine/transition.js";
+import type { Guides } from "../knowledge/guides.js";
+import { buildInstruction, type Instruction } from "../knowledge/instruction.js";
 
 // Оркестратор диалога — чистая функция: на вход состояние сессии и событие,
-// на выход новое состояние и список экранов для отправки. Ни БД, ни сети,
-// ни MAX — поэтому все ветки покрываются тестами, а воркер только сохраняет
-// результат и раскладывает экраны в outbox.
+// на выход новое состояние и экраны для отправки. Ни БД, ни сети, ни MAX —
+// поэтому все ветки покрываются тестами, а воркер только сохраняет результат
+// и раскладывает экраны в outbox.
+//
+// Опросника больше нет: единственный осмысленный переход — «начать/заново»,
+// который показывает инструкцию по документам. Ответы и «назад» не меняют
+// состояние (asking-шагов нет), поэтому возвращают noop.
 
 export type DialogEvent =
   | { type: "start" }
@@ -27,31 +31,30 @@ export interface DialogOutcome {
   reason?: string;
   state: SessionState;
   steps: DialogStep[];
-  /** Шаг — терминальный (чек-лист или передача юристу): сессию можно закрывать. */
+  /** Шаг — терминальный (инструкция): сессию можно закрывать. */
   terminal: boolean;
-  /** Заполняется, когда достигнут терминальный шаг-чек-лист. */
-  checklist?: Checklist;
+  /** Заполняется на шаге-инструкции: документы и как получить каждый. */
+  instruction?: Instruction;
+  /** Дисклеймер сценария — прикладывается к инструкции. */
+  disclaimer?: string;
 }
 
 export interface DialogInput {
   scenario: Scenario;
   catalog: Catalog;
+  /** Гайды «где получить»: обогащают инструкцию шагами. Необязательны. */
+  guides?: Guides;
   /** undefined — новая сессия. */
   state?: SessionState;
   event: DialogEvent;
 }
 
-function navFor(state: SessionState): { back: boolean; restart: boolean } {
-  return { back: state.history.length > 0, restart: true };
+function navFor(): { back: boolean; restart: boolean } {
+  return { back: false, restart: true };
 }
 
-// Показать текущий шаг без перехода — используется после ответа помощника,
-// чтобы вернуть пользователю вопрос и кнопки.
-export function presentState(scenario: Scenario, catalog: Catalog, state: SessionState): DialogOutcome {
-  return present(scenario, catalog, state);
-}
-
-function present(scenario: Scenario, catalog: Catalog, state: SessionState): DialogOutcome {
+// Показать текущий шаг без перехода.
+function present(scenario: Scenario, catalog: Catalog, state: SessionState, guides?: Guides): DialogOutcome {
   const step = stepsById(scenario).get(state.currentStep);
   if (!step) {
     return { status: "noop", reason: "step_missing", state, steps: [], terminal: false };
@@ -60,13 +63,13 @@ function present(scenario: Scenario, catalog: Catalog, state: SessionState): Dia
   const outcome: DialogOutcome = {
     status: "ok",
     state,
-    steps: [{ stepId: step.id, view: renderStep(step), nav: navFor(state) }],
+    steps: [{ stepId: step.id, view: renderStep(step), nav: navFor() }],
     terminal: isTerminalStep(step),
+    disclaimer: scenario.disclaimer,
   };
 
-  if (step.type === "checklist") {
-    const conditions = evaluateConditionsForCatalog(scenario, catalog, state.answers);
-    outcome.checklist = buildChecklist(catalog, scenario, conditions);
+  if (step.type === "instruction") {
+    outcome.instruction = buildInstruction(catalog, guides);
   }
 
   return outcome;
@@ -79,5 +82,5 @@ export function runDialog(input: DialogInput): DialogOutcome {
   if (result.status === "noop") {
     return { status: "noop", state, steps: [], terminal: false, ...(result.reason ? { reason: result.reason } : {}) };
   }
-  return present(input.scenario, input.catalog, result.state);
+  return present(input.scenario, input.catalog, result.state, input.guides);
 }

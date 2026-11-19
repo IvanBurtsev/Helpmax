@@ -9,13 +9,13 @@ import { createMemoryStore } from "../src/store/memory.js";
 import type { RawUpdateRecord } from "../src/store/raw-updates.js";
 import type { SttClient } from "../src/stt/client.js";
 
-// Помощник: свободный текст, голос и кнопка «Не понятно» не меняют шаг диалога,
-// а кладут ответ в outbox и возвращают пользователю текущий вопрос.
+// Помощник: свободный текст, голос и кнопка «Не понятно» не меняют диалог,
+// а кладут ответ в outbox. К ответу приложена кнопка «Показать список заново».
 
 const root = process.cwd();
 const catalog = loadCatalog(path.join(root, "content", "catalog.json"));
 const guides = loadGuides(path.join(root, "content", "guides.json"));
-const scenario = loadScenario(path.join(root, "content", "scenarios", "example.yaml"), catalog);
+const scenario = loadScenario(path.join(root, "content", "scenarios", "example.yaml"));
 
 function raw(id: string, payload: unknown, chatId: number | null = 10, userId: number | null = 20): RawUpdateRecord {
   return { id, dedupeKey: id, updateType: "x", chatId, userId, payload, late: false, status: "new" };
@@ -61,38 +61,32 @@ function helpCallback(id: string, payload: string): RawUpdateRecord {
 const fakeLlm: LlmClient = { model: "fake", complete: async () => "Вот подсказка по документу." };
 
 describe("помощник", () => {
-  it("свободный текст → ответ LLM и возврат к текущему шагу, шаг не меняется", async () => {
+  it("свободный текст → ответ LLM с кнопкой возврата", async () => {
     const store = createMemoryStore();
     const deps = { store, scenario, catalog, guides, llm: fakeLlm };
     await processRawUpdate(deps, botStarted());
-    await store.outbox.claim(10); // дренируем стартовый экран
+    await store.outbox.claim(100); // дренируем стартовую инструкцию
 
     const result = await processRawUpdate(deps, textMessage("t1", "как получить паспорт?"));
     expect(result.status).toBe("done");
 
     const records = await store.outbox.claim(10);
-    expect(records).toHaveLength(2);
-    const answer = records[0]?.payload as { text: string };
-    const back = records[1]?.payload as { text: string };
+    expect(records).toHaveLength(1);
+    const answer = records[0]?.payload as { text: string; keyboard?: unknown };
     expect(answer.text).toContain("Вот подсказка");
-    expect(back.text).toContain("Кто вы?");
-
-    // Шаг диалога не изменился: повторная подсказка снова возвращает «Кто вы?».
-    await processRawUpdate(deps, textMessage("t2", "ещё вопрос"));
-    const next = await store.outbox.claim(10);
-    expect((next[1]?.payload as { text: string }).text).toContain("Кто вы?");
+    expect(answer.keyboard).toBeDefined();
   });
 
-  it("кнопка «Не понятно» → подсказка по текущему шагу", async () => {
+  it("кнопка «Не понятно» → подсказка", async () => {
     const store = createMemoryStore();
     const deps = { store, scenario, catalog, guides, llm: fakeLlm };
     await processRawUpdate(deps, botStarted());
-    await store.outbox.claim(10);
+    await store.outbox.claim(100);
 
     const result = await processRawUpdate(deps, helpCallback("h1", "help:step"));
     expect(result.status).toBe("done");
     const records = await store.outbox.claim(10);
-    expect(records).toHaveLength(2);
+    expect(records).toHaveLength(1);
     expect((records[0]?.payload as { text: string }).text).toContain("Вот подсказка");
   });
 
@@ -100,7 +94,7 @@ describe("помощник", () => {
     const store = createMemoryStore();
     const deps = { store, scenario, catalog, guides, llm: fakeLlm };
     await processRawUpdate(deps, botStarted());
-    await store.outbox.claim(10);
+    await store.outbox.claim(100);
 
     const result = await processRawUpdate(deps, voiceMessage("v1", "https://cdn.max.ru/v.ogg"));
     expect(result.status).toBe("done");
@@ -113,7 +107,7 @@ describe("помощник", () => {
     const stt: SttClient = { transcribe: async () => "как получить выписку" };
     const deps = { store, scenario, catalog, guides, llm: fakeLlm, stt };
     await processRawUpdate(deps, botStarted());
-    await store.outbox.claim(10);
+    await store.outbox.claim(100);
 
     await processRawUpdate(deps, voiceMessage("v2", "https://cdn.max.ru/v.ogg"));
     const records = await store.outbox.claim(10);

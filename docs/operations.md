@@ -49,8 +49,8 @@
 | `send_total{status}` | counter | доставка в MAX |
 | `send_latency_ms` | histogram | отклик бота |
 | `session_started_total` | counter | вход в воронку |
-| `checklist_ready_total` | counter | конверсия |
-| `step_dropoff{step}` | counter | где теряем людей |
+| `instruction_shown_total` | counter | список показан |
+| `doc_question_total` | counter | вопросы помощнику |
 | `lead_created_total` | counter | деньги |
 | `llm_tokens_total{model}` | counter | расход |
 | `llm_cost_rub` | counter | бюджет |
@@ -72,7 +72,7 @@
 | `signature_failures` | > 50/мин | проверить секрет, возможна атака |
 | Очередь | > 1 000 5 мин | добавить воркеров |
 | Ошибки отправки | > 5% 10 мин | проверить MAX API, токен |
-| Конверсия в чек-лист | падение > 30% неделя к неделе | контент/баг |
+| Конверсия в показ списка | падение > 30% неделя к неделе | контент/баг |
 | LLM-расход | > 120% бюджета дня | стоп LLM, fallback |
 | Диск Postgres | > 80% | чистка/расширение |
 | Нет heartbeat планировщика | 5 мин | рестарт |
@@ -88,7 +88,7 @@
 | Определение сценария | process LRU + Redis | 60 с / 5 мин | по `version` |
 | Каталог документов | process LRU | 5 мин | публикация |
 | Сессия | Redis | 30 мин sliding | write-through в PG |
-| Рендер чек-листа | Redis, ключ = sha256(version + answers) | 1 ч | версия |
+| Рендер инструкции | Redis, ключ = sha256(catalogVersion + guidesVersion) | 1 ч | версия |
 | Инструкция документа | Redis | 10 мин | публикация |
 | Ответ LLM на интент | Redis | 24 ч | версия промпта |
 | PDF | S3 | 7 дней | — |

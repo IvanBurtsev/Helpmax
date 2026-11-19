@@ -36,7 +36,7 @@ if (!config.DATABASE_URL || !config.REDIS_URL || !config.MAX_BOT_TOKEN) {
 }
 
 const catalog = loadCatalog(config.CATALOG_PATH);
-const scenario = loadScenario(config.SCENARIO_PATH, catalog);
+const scenario = loadScenario(config.SCENARIO_PATH);
 const guides = loadGuides(config.GUIDES_PATH);
 
 const pool = createPool(config.DATABASE_URL);
@@ -85,9 +85,9 @@ const handleDeps: HandleDeps = {
 
 await max
   .setCommands([
-    { name: "start", description: "Начать подбор документов" },
+    { name: "start", description: "Показать список документов" },
     { name: "help", description: "Подсказка по документу" },
-    { name: "restart", description: "Начать заново" },
+    { name: "restart", description: "Показать список заново" },
   ])
   .catch(() => undefined);
 

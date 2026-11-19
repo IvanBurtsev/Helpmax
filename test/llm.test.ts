@@ -14,7 +14,7 @@ import { clampAnswer, sanitizeLinks } from "../src/llm/sanitize.js";
 const root = process.cwd();
 const catalog = loadCatalog(path.join(root, "content", "catalog.json"));
 const guides = loadGuides(path.join(root, "content", "guides.json"));
-const scenario = loadScenario(path.join(root, "content", "scenarios", "example.yaml"), catalog);
+const scenario = loadScenario(path.join(root, "content", "scenarios", "example.yaml"));
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });

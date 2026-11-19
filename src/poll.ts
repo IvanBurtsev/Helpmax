@@ -32,7 +32,7 @@ if (!config.MAX_BOT_TOKEN) {
 }
 
 const catalog = loadCatalog(config.CATALOG_PATH);
-const scenario = loadScenario(config.SCENARIO_PATH, catalog);
+const scenario = loadScenario(config.SCENARIO_PATH);
 const guides = loadGuides(config.GUIDES_PATH);
 const store = createMemoryStore();
 
@@ -74,15 +74,15 @@ const me = await max.getMe().catch((error: unknown): never => {
 });
 console.log(`Бот: ${me.first_name}${me.username ? ` (@${me.username})` : ""}, id ${me.user_id}`);
 console.log(`Сценарий: ${scenario.title} (${scenario.code} v${scenario.version})`);
-console.log(`Каталог: ${catalog.documents.length} документов, ${catalog.conditions.length} условий.`);
+console.log(`Каталог: ${catalog.documents.length} документов.`);
 console.log(`Подсказки: ${llm ? `LLM ${llm.model}` : "выключены (нет LLM_API_KEY)"}; голос: ${stt ? "включён" : "выключен"}.`);
 console.log("Откройте бота в MAX и нажмите «Начать». Ctrl+C — остановить.\n");
 
 await max
   .setCommands([
-    { name: "start", description: "Начать подбор документов" },
+    { name: "start", description: "Показать список документов" },
     { name: "help", description: "Подсказка по документу" },
-    { name: "restart", description: "Начать заново" },
+    { name: "restart", description: "Показать список заново" },
   ])
   .catch(() => undefined);
 

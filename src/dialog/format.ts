@@ -1,36 +1,14 @@
-import { itemsByGroup, splitRequired, type Checklist, type ChecklistItem } from "../engine/checklist.js";
-import type { Progress } from "../engine/progress.js";
+import type { Instruction, InstructionItem } from "../knowledge/instruction.js";
 
-// Текстовая форма чек-листа для сообщения в MAX. Разметка — Markdown (MAX её
-// поддерживает): жирные заголовки, маркеры, цитата для дисклеймера.
-// Обязательные выводим прогрессивно: сначала ключевые, остальные — «после
-// консультации». manual-документы идут отдельным блоком «уточнит юрист».
+// Текстовая форма инструкции для MAX. Разметка — Markdown (MAX её поддерживает):
+// жирные заголовки сервисов и документов, цитата для дисклеймера.
+//
+// Инструкция длинная, поэтому режем её на сообщения по границам документов:
+// одно сообщение MAX не должно превышать лимит, и ни один документ нельзя
+// разрывать между сообщениями. Оформление живёт здесь, данные — в
+// knowledge/instruction.ts.
 
-export const CHECKLIST_PREVIEW = 6;
-
-function bullet(item: ChecklistItem): string {
-  return `• ${item.title}`;
-}
-
-export function formatChecklist(checklist: Checklist, options: { preview?: number } = {}): string {
-  const preview = options.preview ?? CHECKLIST_PREVIEW;
-  const lines: string[] = [];
-
-  const { first, rest } = splitRequired(checklist, preview);
-  lines.push(`**Обязательно собрать (${checklist.summary.required}):**`);
-  for (const item of first) lines.push(bullet(item));
-  if (rest.length > 0) {
-    lines.push(`…и ещё ${rest.length} — пришлём после консультации.`);
-  }
-
-  const lawyer = itemsByGroup(checklist, "lawyer");
-  if (lawyer.length > 0) {
-    lines.push("", `**Уточнит юрист (${lawyer.length}):**`);
-    for (const item of lawyer) lines.push(bullet(item));
-  }
-
-  return lines.join("\n");
-}
+export const INSTRUCTION_CHUNK_CHARS = 3500;
 
 // Дисклеймер — цитатой, чтобы визуально отделялся от списка.
 export function formatDisclaimer(text: string): string {
@@ -42,19 +20,64 @@ export function formatDisclaimer(text: string): string {
     .join("\n");
 }
 
-function plural(count: number, one: string, few: string, many: string): string {
-  const mod10 = count % 10;
-  const mod100 = count % 100;
-  if (mod10 === 1 && mod100 !== 11) return one;
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return few;
-  return many;
+function itemBlock(item: InstructionItem): string {
+  const lines: string[] = [];
+  const tag = item.manual ? " _(может понадобиться)_" : "";
+  lines.push(`**${item.title}**${tag}`);
+  lines.push(`Как получить: ${item.howTo}`);
+  if (item.note !== "" && !item.howTo.includes(item.note)) {
+    lines.push(`Пометка: ${item.note}`);
+  }
+  for (const link of item.links) {
+    lines.push(`Ссылка: ${link.title} — ${link.url}`);
+  }
+  return lines.join("\n");
 }
 
-// Прогресс по кратчайшему оставшемуся пути: «Осталось примерно N вопросов».
-export function formatProgress(progress: Progress): string {
-  if (progress.total <= 0 || progress.remaining <= 0) return "";
-  const filled = Math.max(0, Math.min(10, Math.round((progress.percent / 100) * 10)));
-  const bar = "▰".repeat(filled) + "▱".repeat(10 - filled);
-  const word = plural(progress.remaining, "вопрос", "вопроса", "вопросов");
-  return `Осталось примерно ${progress.remaining} ${word}\n${bar} ${progress.percent}%`;
+export interface FormatInstructionOptions {
+  /** Заголовок сообщения (например, «Как получить документы»). */
+  header?: string;
+  /** Дисклеймер сценария — прикладывается в конце. */
+  disclaimer?: string;
+  /** Максимальная длина одного сообщения в символах. */
+  maxChars?: number;
+}
+
+// Собирает блоки и пакует их в сообщения, не разрывая отдельный блок.
+function packBlocks(blocks: readonly string[], maxChars: number): string[] {
+  const chunks: string[] = [];
+  let current = "";
+  for (const block of blocks) {
+    if (current === "") {
+      current = block;
+      continue;
+    }
+    if (current.length + 2 + block.length <= maxChars) {
+      current = `${current}\n\n${block}`;
+    } else {
+      chunks.push(current);
+      current = block;
+    }
+  }
+  if (current !== "") chunks.push(current);
+  return chunks.length > 0 ? chunks : [""];
+}
+
+export function formatInstruction(instruction: Instruction, options: FormatInstructionOptions = {}): string[] {
+  const maxChars = options.maxChars ?? INSTRUCTION_CHUNK_CHARS;
+  const blocks: string[] = [];
+
+  const header = options.header?.trim();
+  if (header) blocks.push(`**${header}**`);
+  blocks.push(`Всего документов: ${instruction.total}. Ниже — что нужно и как получить каждый.`);
+
+  for (const section of instruction.sections) {
+    blocks.push(section.url ? `**${section.title}** — ${section.url}` : `**${section.title}**`);
+    for (const item of section.items) blocks.push(itemBlock(item));
+  }
+
+  const disclaimer = options.disclaimer?.trim();
+  if (disclaimer) blocks.push(formatDisclaimer(disclaimer));
+
+  return packBlocks(blocks, maxChars);
 }

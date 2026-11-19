@@ -77,7 +77,7 @@ for (const file of scenarioFiles) {
     errors.push(`scenario ${file}: не удалось разобрать YAML (${error instanceof Error ? error.message : String(error)})`);
     continue;
   }
-  for (const issue of validateScenario(raw, catalog)) {
+  for (const issue of validateScenario(raw)) {
     errors.push(`scenario ${file}: ${issue}`);
   }
 }

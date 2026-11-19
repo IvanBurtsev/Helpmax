@@ -16,7 +16,7 @@ import { parseUpdate } from "../src/updates.js";
 
 const root = process.cwd();
 const catalog: Catalog = loadCatalog(path.join(root, "content", "catalog.json"));
-const scenario: Scenario = loadScenario(path.join(root, "content", "scenarios", "example.yaml"), catalog);
+const scenario: Scenario = loadScenario(path.join(root, "content", "scenarios", "example.yaml"));
 
 interface SentMessage {
   chatId: number;
@@ -74,20 +74,6 @@ const started = {
   payload: null,
 } as unknown as Update;
 
-function callback(index: number, stepId: string, value: string | string[]): Update {
-  return {
-    update_type: "message_callback",
-    timestamp: 1_700_000_000,
-    callback: {
-      timestamp: 1_700_000_000,
-      callback_id: `cb-${index}`,
-      payload: JSON.stringify({ s: stepId, v: value }),
-      user: { user_id: 20 },
-    },
-    message: { recipient: { chat_id: 10 }, body: { mid: `m-${index}` } },
-  } as unknown as Update;
-}
-
 describe("хранилище в памяти", () => {
   it("сессии: создание, оптимистичная блокировка, рестарт", async () => {
     const store = createMemoryStore();
@@ -99,8 +85,8 @@ describe("хранилище в памяти", () => {
       scenarioCode: "bankruptcy",
       scenarioVersion: 1,
       catalogVersion: "v1",
-      state: { answers: {}, currentStep: "who", history: [], flags: { disclaimerShown: false } },
-      currentStep: "who",
+      state: { currentStep: "instruction" },
+      currentStep: "instruction",
     });
     expect(created.version).toBe(1);
     expect(await store.sessions.getActiveSession(user.id)).toBeDefined();
@@ -110,7 +96,7 @@ describe("хранилище в памяти", () => {
       id: created.id,
       expectedVersion: 99,
       state: created.state,
-      currentStep: "debt",
+      currentStep: "instruction",
       status: "active",
     });
     expect(conflict).toBeUndefined();
@@ -119,8 +105,8 @@ describe("хранилище в памяти", () => {
     const next = await store.sessions.saveState({
       id: created.id,
       expectedVersion: 1,
-      state: { answers: { who: "person" }, currentStep: "debt", history: ["who"], flags: { disclaimerShown: false } },
-      currentStep: "debt",
+      state: { currentStep: "instruction" },
+      currentStep: "instruction",
       status: "active",
     });
     expect(next).toBe(2);
@@ -160,35 +146,22 @@ describe("хранилище в памяти", () => {
 });
 
 describe("локальный путь (как в npm run poll)", () => {
-  it("проходит диалог от /start до чек-листа и отправляет сообщения", async () => {
+  it("после /start отправляет инструкцию по документам", async () => {
     const store = createMemoryStore();
     const { sent, max } = fakeMax();
 
     expect(await pipe(store, max, started)).toBe("done");
-    expect(sent).toHaveLength(1);
+    expect(sent.length).toBeGreaterThan(1);
     expect(sent[0]?.chatId).toBe(10);
-    expect(sent[0]?.hasKeyboard).toBe(true);
 
-    const walk: Array<[string, string | string[]]> = [
-      ["who", "person"],
-      ["debt", "under_100k"],
-      ["overdue", "no"],
-      ["property", ["flat"]],
-      ["income", ["salary"]],
-      ["credits", ["cards"]],
-      ["deals", "no"],
-      ["marital", "single"],
-      ["children", "no"],
-    ];
-    for (const [index, [stepId, value]] of walk.entries()) {
-      expect(await pipe(store, max, callback(index, stepId, value))).toBe("done");
-    }
+    const joined = sent.map((message) => message.text).join("\n");
+    expect(joined).toContain("Как получить документы");
+    expect(joined).toContain("Всего документов");
+    expect(joined).toContain("может понадобиться");
+    expect(joined).toContain("информационный сервис");
 
+    // Клавиатура идёт на последнем сообщении — кнопка «Начать заново».
     const last = sent[sent.length - 1];
-    expect(last?.text).toContain("Ваш список документов");
-    expect(last?.text).toContain("Обязательно собрать");
-    expect(last?.text).toContain("информационный сервис");
-    // На чек-листе клавиатура остаётся — кнопка «Начать заново».
     expect(last?.hasKeyboard).toBe(true);
   });
 
@@ -197,7 +170,8 @@ describe("локальный путь (как в npm run poll)", () => {
     const { sent, max } = fakeMax();
 
     expect(await pipe(store, max, started)).toBe("done");
+    const afterFirst = sent.length;
     expect(await pipe(store, max, started)).toBe("duplicate");
-    expect(sent).toHaveLength(1);
+    expect(sent).toHaveLength(afterFirst);
   });
 });

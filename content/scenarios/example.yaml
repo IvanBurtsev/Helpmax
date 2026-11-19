@@ -1,13 +1,13 @@
-# ПРИМЕР СЦЕНАРИЯ. Черновик.
+# СЦЕНАРИЙ «ИНСТРУКЦИЯ ПО ДОКУМЕНТАМ». Черновик.
 # НЕ ПУБЛИКОВАТЬ без ревью юриста: состав документов зависит от закона,
 # региона и года. Здесь важна структура, а не конкретный перечень.
 #
-# Режим catalog-driven: сценарий НЕ содержит список документов. Ответы
-# превращаются в 13 условий, а документы берутся из content/catalog.json
-# по правилу rule. Так бот и сайт используют одну правду.
+# Опросника больше нет. После «Начать» бот сразу показывает полный список
+# документов и как получить каждый. Документы берутся из content/catalog.json,
+# шаги получения — из content/guides.json. Сценарий их не дублирует.
 
 code: bankruptcy
-version: 1
+version: 2
 title: "Банкротство физлица"
 status: draft
 
@@ -19,166 +19,9 @@ disclaimer: >
   юридическую консультацию и не гарантирует результат. Итоговый перечень
   подтверждает юрист.
 
-start: who
+start: instruction
 
 steps:
-  - id: who
-    type: choice
-    text: "Кто вы?"
-    options:
-      - { id: person, label: "Физлицо", next: debt }
-      - { id: ip, label: "ИП", next: debt }
-      - { id: selfEmployed, label: "Самозанятый", next: debt }
-      - { id: unknown, label: "Не знаю", next: debt }
-
-  - id: debt
-    type: choice
-    text: "Какая общая сумма долга?"
-    options:
-      - { id: under_100k, label: "До 100 тыс. ₽" }
-      - { id: 100_500k, label: "100–500 тыс. ₽" }
-      - { id: over_500k, label: "Больше 500 тыс. ₽" }
-      - { id: unknown, label: "Не знаю" }
-    next: overdue
-
-  - id: overdue
-    type: choice
-    text: "Есть ли просрочка больше 3 месяцев?"
-    options:
-      - { id: "yes", label: "Да" }
-      - { id: "no", label: "Нет" }
-      - { id: unknown, label: "Не знаю" }
-    next: property
-
-  - id: property
-    type: multi
-    text: "Что из имущества у вас есть?"
-    min: 0
-    options:
-      - { id: flat, label: "Квартира или дом" }
-      - { id: car, label: "Автомобиль" }
-      - { id: land, label: "Земельный участок" }
-      - { id: none, label: "Ничего из перечисленного", exclusive: true }
-      - { id: unknown, label: "Не знаю", exclusive: true }
-    next: income
-
-  - id: income
-    type: multi
-    text: "Какой доход у вас есть? Можно выбрать несколько."
-    min: 0
-    options:
-      - { id: salary, label: "Зарплата" }
-      - { id: pension, label: "Пенсия" }
-      - { id: social, label: "Социальные выплаты" }
-      - { id: selfEmployed, label: "Доход самозанятого" }
-      - { id: none, label: "Официального дохода нет", exclusive: true }
-      - { id: unknown, label: "Не знаю", exclusive: true }
-    next: credits
-
-  - id: credits
-    type: multi
-    text: "Какие кредиты и долги у вас есть? Можно выбрать несколько."
-    min: 0
-    options:
-      - { id: mortgage, label: "Ипотека" }
-      - { id: secured, label: "Залоговый или целевой кредит" }
-      - { id: cards, label: "Кредитные карты" }
-      - { id: other, label: "Другие долги (ЖКУ, налоги, физлица)" }
-      - { id: none, label: "Ничего из перечисленного", exclusive: true }
-      - { id: unknown, label: "Не знаю", exclusive: true }
-    next: deals
-
-  - id: deals
-    type: choice
-    text: "За последний год вы продавали или дарили недвижимость?"
-    options:
-      - { id: "yes", label: "Да" }
-      - { id: "no", label: "Нет" }
-      - { id: unknown, label: "Не знаю" }
-    next: marital
-
-  - id: marital
-    type: choice
-    text: "Семейное положение"
-    options:
-      - { id: single, label: "Не в браке" }
-      - { id: married, label: "В браке" }
-      - { id: divorced, label: "В разводе" }
-      - { id: unknown, label: "Не знаю / не хочу отвечать" }
-    next: children
-
-  - id: children
-    type: choice
-    text: "Есть ли несовершеннолетние дети?"
-    options:
-      - { id: "yes", label: "Да" }
-      - { id: "no", label: "Нет" }
-      - { id: unknown, label: "Не знаю" }
-    next: result
-
-  - id: result
-    type: checklist
-    source: catalog
-    title: "Ваш список документов"
-
-# Ответы → 13 условий сайта. Если условие не описано — false.
-# ВАЖНО: в JSONLogic "in" — это [значение, массив], а не наоборот.
-conditions:
-  pension:
-    when:
-      in: ["pension", { var: "answers.income" }]
-
-  social:
-    when:
-      in: ["social", { var: "answers.income" }]
-
-  selfEmployed:
-    when:
-      or:
-        - { "==": [{ var: "answers.who" }, "selfEmployed"] }
-        - { in: ["selfEmployed", { var: "answers.income" }] }
-
-  officialWork:
-    when:
-      in: ["salary", { var: "answers.income" }]
-
-  realEstateDeal:
-    when:
-      "==": [{ var: "answers.deals" }, "yes"]
-
-  securedCredit:
-    when:
-      in: ["secured", { var: "answers.credits" }]
-
-  mortgage:
-    when:
-      in: ["mortgage", { var: "answers.credits" }]
-
-  creditCards:
-    when:
-      in: ["cards", { var: "answers.credits" }]
-
-  ip:
-    when:
-      "==": [{ var: "answers.who" }, "ip"]
-
-  otherDebts:
-    when:
-      in: ["other", { var: "answers.credits" }]
-
-  children:
-    when:
-      "==": [{ var: "answers.children" }, "yes"]
-
-  spouse:
-    when:
-      "==": [{ var: "answers.marital" }, "married"]
-
-  divorce:
-    when:
-      "==": [{ var: "answers.marital" }, "divorced"]
-
-# Действия после результата
-on_complete:
-  - event: checklist.ready
-    allow: [export_pdf, open_site, handoff]
+  - id: instruction
+    type: instruction
+    title: "Как получить документы"

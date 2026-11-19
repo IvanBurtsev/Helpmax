@@ -74,19 +74,10 @@ export function loadCatalog(filePath: string): Catalog {
   return parseCatalog(JSON.parse(text));
 }
 
+// manual-документ не обязателен для клиента: в инструкции он идёт с пометкой
+// «может понадобиться», а не как обязательный.
 export function isManualDocument(doc: CatalogDocument): boolean {
   return doc.rule === RULE_MANUAL;
-}
-
-// required считается по правилу и ответам, а не хранится в сценарии жёстко.
-// manual никогда не обязателен для клиента — уходит в «уточнит юрист».
-export function isRequiredDocument(
-  doc: CatalogDocument,
-  conditions: Readonly<Record<string, boolean>>,
-): boolean {
-  if (doc.rule === RULE_MANUAL) return false;
-  if (doc.rule === RULE_ALWAYS) return true;
-  return conditions[doc.rule] === true;
 }
 
 // Семантические проверки каталога для CI (не бросает, возвращает список проблем).

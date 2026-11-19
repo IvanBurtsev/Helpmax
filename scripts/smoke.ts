@@ -31,7 +31,7 @@ if (!config.DATABASE_URL) {
 }
 
 const catalog = loadCatalog(config.CATALOG_PATH);
-const scenario = loadScenario(config.SCENARIO_PATH, catalog);
+const scenario = loadScenario(config.SCENARIO_PATH);
 const pool = createPool(config.DATABASE_URL);
 const store = createStore(pool);
 
@@ -63,20 +63,6 @@ const started = {
   user: { user_id: userId },
   payload: null,
 } as unknown as Update;
-
-function callback(index: number, stepId: string, value: string | string[]): Update {
-  return {
-    update_type: "message_callback",
-    timestamp: Math.floor(run / 1000),
-    callback: {
-      timestamp: Math.floor(run / 1000),
-      callback_id: `smoke-${run}-${index}`,
-      payload: JSON.stringify({ s: stepId, v: value }),
-      user: { user_id: userId },
-    },
-    message: { recipient: { chat_id: chatId }, body: { mid: `smoke-${run}-${index}` } },
-  } as unknown as Update;
-}
 
 // Тот же путь, что в webhook + воркере: дедуп → обработка → доставка.
 async function pipe(update: Update): Promise<"duplicate" | "done" | "skipped"> {
@@ -120,27 +106,13 @@ console.log(`Смоук-тест: сценарий ${scenario.code} v${scenario.
 try {
   await store.scenarios.register(scenario);
   console.log("Диалог:");
-  check((await pipe(started)) === "done", "bot_started обработан, сообщение отправлено");
-  check(sent.length === 1, "отправлено первое сообщение");
+  check((await pipe(started)) === "done", "bot_started обработан, инструкция отправлена");
+  check(sent.length > 1, "инструкция отправлена несколькими сообщениями");
 
-  const walk: Array<[string, string | string[]]> = [
-    ["who", "person"],
-    ["debt", "under_100k"],
-    ["overdue", "no"],
-    ["property", ["flat"]],
-    ["income", ["salary"]],
-    ["credits", ["cards"]],
-    ["deals", "no"],
-    ["marital", "single"],
-    ["children", "no"],
-  ];
-  for (const [index, [stepId, value]] of walk.entries()) {
-    check((await pipe(callback(index, stepId, value))) === "done", `шаг ${stepId} → ${String(value)}`);
-  }
-
-  const last = sent[sent.length - 1] ?? "";
-  check(last.includes("Ваш список документов"), "чек-лист собран");
-  check(last.includes("Обязательно собрать"), "в чек-листе есть обязательные документы");
+  const joined = sent.join("\n");
+  check(joined.includes("Как получить документы"), "есть заголовок инструкции");
+  check(joined.includes("Всего документов"), "указано число документов");
+  check(joined.includes("может понадобиться"), "редкие документы помечены");
 
   check((await pipe(started)) === "duplicate", "повторное событие дедуплицировано (не дубль)");
 

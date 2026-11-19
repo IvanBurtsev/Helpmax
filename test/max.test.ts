@@ -152,7 +152,7 @@ describe("createMaxFetch", () => {
 describe("клавиатура", () => {
   const choice: StepView = {
     stepId: "who",
-    type: "choice",
+    type: "instruction",
     text: "Кто вы?",
     multiple: false,
     terminal: false,
@@ -195,7 +195,7 @@ describe("клавиатура", () => {
   });
 
   it("инфо-шаг без вариантов и навигации не даёт клавиатуры", () => {
-    const info: StepView = { stepId: "i", type: "info", text: "x", multiple: false, terminal: false, options: [] };
+    const info: StepView = { stepId: "i", type: "instruction", text: "x", multiple: false, terminal: false, options: [] };
     expect(buildKeyboard(info)).toBeUndefined();
   });
 
@@ -208,7 +208,7 @@ describe("клавиатура", () => {
   it("длинные подписи — по одной в ряд", () => {
     const long: StepView = {
       stepId: "l",
-      type: "choice",
+      type: "instruction",
       text: "?",
       multiple: false,
       terminal: false,
@@ -260,7 +260,7 @@ describe("MaxClient", () => {
     const client = new MaxClient({ token: "tok", fetch });
     const view: StepView = {
       stepId: "s",
-      type: "choice",
+      type: "instruction",
       text: "?",
       multiple: false,
       terminal: false,

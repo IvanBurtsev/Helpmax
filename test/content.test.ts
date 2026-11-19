@@ -2,8 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { parse } from "yaml";
 import { describe, expect, it } from "vitest";
-import { loadCatalog, validateCatalog, type Catalog } from "../src/catalog.js";
-import { loadScenario, validateScenario, type Scenario } from "../src/engine/scenario.js";
+import { loadCatalog, validateCatalog } from "../src/catalog.js";
+import { loadScenario, validateScenario } from "../src/engine/scenario.js";
 
 const catalogPath = path.join(process.cwd(), "content", "catalog.json");
 const scenarioPath = path.join(process.cwd(), "content", "scenarios", "example.yaml");
@@ -28,47 +28,45 @@ describe("контент", () => {
   });
 
   it("пример сценария проходит семантическую проверку", () => {
-    const catalog = loadCatalog(catalogPath);
-    expect(validateScenario(readScenarioRaw(), catalog)).toEqual([]);
+    expect(validateScenario(readScenarioRaw())).toEqual([]);
   });
 
-  it("пример сценария загружается", () => {
-    const catalog = loadCatalog(catalogPath);
-    const scenario = loadScenario(scenarioPath, catalog);
+  it("пример сценария загружается как инструкция", () => {
+    const scenario = loadScenario(scenarioPath);
     expect(scenario.code).toBe("bankruptcy");
     expect(scenario.status).toBe("draft");
+    expect(scenario.start).toBe("instruction");
+    expect(scenario.steps[0]?.type).toBe("instruction");
   });
 
-  it("ловит переход на несуществующий шаг", () => {
-    const catalog = loadCatalog(catalogPath);
+  it("ловит несуществующий стартовый шаг", () => {
     const broken = {
       code: "broken",
       version: 1,
       title: "t",
       status: "draft",
       disclaimer: "d",
-      start: "a",
-      steps: [{ id: "a", type: "info", text: "x", next: "missing" }],
+      start: "missing",
+      steps: [{ id: "instruction", type: "instruction", title: "x" }],
     };
-    const issues = validateScenario(broken, catalog);
-    expect(issues.some((issue) => issue.includes("next=missing"))).toBe(true);
+    const issues = validateScenario(broken);
+    expect(issues.some((issue) => issue.includes("start=missing"))).toBe(true);
   });
 
-  it("ловит опечатку в условии", () => {
-    const catalog = loadCatalog(catalogPath);
+  it("ловит дубль шага", () => {
     const broken = {
       code: "broken",
       version: 1,
       title: "t",
       status: "draft",
       disclaimer: "d",
-      start: "result",
-      steps: [{ id: "result", type: "checklist", source: "catalog", title: "r" }],
-      conditions: { pensoin: { when: { "==": [1, 1] } } },
+      start: "instruction",
+      steps: [
+        { id: "instruction", type: "instruction", title: "x" },
+        { id: "instruction", type: "instruction", title: "y" },
+      ],
     };
-    const issues = validateScenario(broken, catalog);
-    expect(issues.some((issue) => issue.includes("pensoin"))).toBe(true);
+    const issues = validateScenario(broken);
+    expect(issues.some((issue) => issue.includes("дубль"))).toBe(true);
   });
 });
-
-export type { Catalog, Scenario };

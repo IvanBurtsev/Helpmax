@@ -36,10 +36,10 @@ const sessionRow = (overrides: Record<string, unknown> = {}): Record<string, unk
   scenario_code: "bankruptcy",
   scenario_version: 1,
   catalog_version: "2026-11-19",
-  state: { answers: {}, currentStep: "who", history: [], flags: { disclaimerShown: false } },
+  state: { currentStep: "instruction" },
   version: 0,
   status: "active",
-  current_step: "who",
+  current_step: "instruction",
   ...overrides,
 });
 
@@ -70,7 +70,7 @@ describe("SessionStore", () => {
     const found = new SessionStore(new FakeDb(() => result([sessionRow()])));
     const session = await found.getActiveSession("u1");
     expect(session?.id).toBe("s1");
-    expect(session?.currentStep).toBe("who");
+    expect(session?.currentStep).toBe("instruction");
 
     const empty = new SessionStore(new FakeDb(() => result([])));
     expect(await empty.getActiveSession("u1")).toBeUndefined();
@@ -79,7 +79,7 @@ describe("SessionStore", () => {
   it("createSession вставляет состояние как jsonb", async () => {
     const db = new FakeDb(() => result([sessionRow()]));
     const store = new SessionStore(db);
-    const state: SessionState = { answers: {}, currentStep: "who", history: [], flags: { disclaimerShown: false } };
+    const state: SessionState = { currentStep: "instruction" };
 
     const session = await store.createSession({
       publicId: "p1",
@@ -88,7 +88,7 @@ describe("SessionStore", () => {
       scenarioVersion: 1,
       catalogVersion: "2026-11-19",
       state,
-      currentStep: "who",
+      currentStep: "instruction",
     });
 
     expect(session.publicId).toBe("p1");
@@ -102,8 +102,8 @@ describe("SessionStore", () => {
     const version = await ok.saveState({
       id: "s1",
       expectedVersion: 2,
-      state: { answers: {}, currentStep: "debt", history: ["who"], flags: { disclaimerShown: false } },
-      currentStep: "debt",
+      state: { currentStep: "instruction" },
+      currentStep: "instruction",
       status: "active",
     });
     expect(version).toBe(3);
@@ -114,8 +114,8 @@ describe("SessionStore", () => {
       await conflict.saveState({
         id: "s1",
         expectedVersion: 2,
-        state: { answers: {}, currentStep: "debt", history: [], flags: { disclaimerShown: false } },
-        currentStep: "debt",
+        state: { currentStep: "instruction" },
+        currentStep: "instruction",
         status: "active",
       }),
     ).toBeUndefined();
@@ -226,8 +226,8 @@ describe("ScenarioStore", () => {
       title: "Банкротство",
       status: "draft",
       disclaimer: "информационный сервис, не юридическая услуга",
-      start: "who",
-      steps: [{ id: "who", type: "choice", text: "Кто вы?", options: [{ id: "person", label: "Физлицо" }] }],
+      start: "instruction",
+      steps: [{ id: "instruction", type: "instruction", title: "Как получить документы" }],
     };
 
     await store.register(scenario);

@@ -106,3 +106,17 @@ export function buildKeyboard(
   if (rows.length === 0) return undefined;
   return Keyboard.inlineKeyboard(rows);
 }
+
+// Клавиатура ответа помощника: вернуться к списку документов.
+const ASSIST_VIEW: StepView = {
+  stepId: "instruction",
+  type: "instruction",
+  text: "",
+  multiple: false,
+  terminal: true,
+  options: [],
+};
+
+export function buildAssistKeyboard(): InlineKeyboardAttachmentRequest | undefined {
+  return buildKeyboard(ASSIST_VIEW, { restart: true });
+}
