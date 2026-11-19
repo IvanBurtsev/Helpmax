@@ -181,6 +181,19 @@ describe("клавиатура", () => {
     expect(decodeCallbackPayload("мусор")).toBeUndefined();
   });
 
+  it("распознаёт кнопки подсказки", () => {
+    expect(decodeCallbackPayload("help:step")).toEqual({ kind: "help", target: "step" });
+    expect(decodeCallbackPayload("help:checklist")).toEqual({ kind: "help", target: "checklist" });
+  });
+
+  it("добавляет кнопку «Не понятно»", () => {
+    const keyboard = buildKeyboard(choice, {}, { help: "step" });
+    const rows = keyboard?.payload.buttons ?? [];
+    const last = rows.at(-1)?.[0];
+    expect(last?.type).toBe("callback");
+    expect((last as { payload: string }).payload).toBe("help:step");
+  });
+
   it("инфо-шаг без вариантов и навигации не даёт клавиатуры", () => {
     const info: StepView = { stepId: "i", type: "info", text: "x", multiple: false, terminal: false, options: [] };
     expect(buildKeyboard(info)).toBeUndefined();
@@ -230,6 +243,38 @@ describe("MaxClient", () => {
     const headers = captured?.init?.headers as Record<string, string>;
     expect(headers["Authorization"]).toBe("tok");
     expect(JSON.parse(String(captured?.init?.body))).toEqual({ text: "привет" });
+  });
+
+  it("sendMessage прокидывает вложения перед клавиатурой", async () => {
+    let body: unknown;
+    const { fetch } = makeFetch((_call, _url, init) => {
+      body = init?.body ? JSON.parse(String(init.body)) : undefined;
+      return jsonResponse({
+        message: {
+          body: { mid: "m1", seq: 1, text: "x" },
+          recipient: { chat_id: 42, chat_type: "dialog", user_id: null, post_id: null },
+          timestamp: 1,
+        },
+      });
+    });
+    const client = new MaxClient({ token: "tok", fetch });
+    const view: StepView = {
+      stepId: "s",
+      type: "choice",
+      text: "?",
+      multiple: false,
+      terminal: false,
+      options: [{ id: "a", label: "A" }],
+    };
+    const keyboard = buildKeyboard(view);
+    await client.sendMessage({
+      chatId: 42,
+      text: "x",
+      ...(keyboard ? { keyboard } : {}),
+      attachments: [{ type: "image", payload: { url: "https://example.com/h.png" } }],
+    });
+    const parsed = body as { attachments?: Array<{ type: string }> };
+    expect(parsed.attachments?.map((a) => a.type)).toEqual(["image", "inline_keyboard"]);
   });
 
   it("editMessage бросает MaxActionError при success:false", async () => {

@@ -8,14 +8,23 @@ import { decodeCallbackPayload } from "./max/keyboard.js";
 
 const LATE_THRESHOLD_MS = 10 * 60 * 1000;
 
+/** Запрос к помощнику (LLM/STT): не меняет состояние диалога. */
+export type AssistRequest =
+  | { kind: "text"; text: string }
+  | { kind: "voice"; url: string }
+  | { kind: "step" }
+  | { kind: "checklist" };
+
 export interface ParsedUpdate {
   dedupeKey: string;
   updateType: string;
   chatId: number | null;
   userId: number | null;
   late: boolean;
-  /** undefined — событие не про диалог (служебное или свободный текст). */
+  /** undefined — событие не про диалог (служебное, свободный текст, голос). */
   event?: DialogEvent;
+  /** Запрос подсказки (свободный текст, голос или кнопка «Не понятно»). */
+  assist?: AssistRequest;
 }
 
 // У MAX нет update_id, поэтому ключ собираем из стабильных полей события.
@@ -62,12 +71,44 @@ export function isUpdateLike(value: unknown): value is Update {
   );
 }
 
-function callbackEvent(payload: string | undefined): DialogEvent | undefined {
-  if (!payload) return undefined;
+function callbackEvent(payload: string | undefined): { event?: DialogEvent; assist?: AssistRequest } {
+  if (!payload) return {};
   const decoded = decodeCallbackPayload(payload);
-  if (!decoded) return undefined;
-  if (decoded.kind === "nav") return { type: decoded.action };
-  return { type: "answer", stepId: decoded.stepId, value: decoded.value };
+  if (!decoded) return {};
+  if (decoded.kind === "nav") return { event: { type: decoded.action } };
+  if (decoded.kind === "help") return { assist: { kind: decoded.target } };
+  return { event: { type: "answer", stepId: decoded.stepId, value: decoded.value } };
+}
+
+// Голосовое сообщение: берём первое аудио-вложение.
+function audioUrl(body: { attachments?: unknown } | undefined): string | undefined {
+  const attachments = body?.attachments;
+  if (!Array.isArray(attachments)) return undefined;
+  for (const attachment of attachments) {
+    if (
+      typeof attachment === "object" &&
+      attachment !== null &&
+      (attachment as { type?: unknown }).type === "audio"
+    ) {
+      const url = (attachment as { payload?: { url?: unknown } }).payload?.url;
+      if (typeof url === "string" && url !== "") return url;
+    }
+  }
+  return undefined;
+}
+
+// Свободный текст: команды — это события диалога, остальное — вопрос помощнику.
+function messageAssist(text: string | null | undefined, body: { attachments?: unknown } | undefined): { event?: DialogEvent; assist?: AssistRequest } {
+  const url = audioUrl(body);
+  if (url) return { assist: { kind: "voice", url } };
+
+  const value = text?.trim() ?? "";
+  if (value === "") return {};
+  const command = value.toLowerCase().split(/\s+/)[0];
+  if (command === "/start") return { event: { type: "start" } };
+  if (command === "/restart") return { event: { type: "restart" } };
+  if (command === "/help") return { assist: { kind: "step" } };
+  return { assist: { kind: "text", text: value } };
 }
 
 export function parseUpdate(update: Update, nowMs: number = Date.now()): ParsedUpdate {
@@ -77,22 +118,27 @@ export function parseUpdate(update: Update, nowMs: number = Date.now()): ParsedU
       return { ...base, chatId: update.chat_id, userId: update.user.user_id, event: { type: "start" } };
 
     case "message_callback": {
-      const event = callbackEvent(update.callback.payload);
+      const { event, assist } = callbackEvent(update.callback.payload);
       const chatId = update.message?.recipient.chat_id ?? null;
       return {
         ...base,
         chatId,
         userId: update.callback.user.user_id,
         ...(event ? { event } : {}),
+        ...(assist ? { assist } : {}),
       };
     }
 
-    case "message_created":
+    case "message_created": {
+      const { event, assist } = messageAssist(update.message.body.text, update.message.body);
       return {
         ...base,
         chatId: update.message.recipient.chat_id ?? null,
         userId: update.message.sender?.user_id ?? null,
+        ...(event ? { event } : {}),
+        ...(assist ? { assist } : {}),
       };
+    }
 
     default:
       return { ...base, chatId: "chat_id" in update ? update.chat_id : null, userId: null };

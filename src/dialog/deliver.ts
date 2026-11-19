@@ -48,6 +48,7 @@ async function deliver(deps: DeliverDeps, record: OutboxRecord): Promise<string 
         chatId: payload.chatId,
         text: payload.text,
         ...(payload.keyboard ? { keyboard: payload.keyboard } : {}),
+        ...(payload.attachments ? { attachments: payload.attachments } : {}),
         ...(payload.format ? { format: payload.format } : {}),
       });
       return message.body.mid ?? null;

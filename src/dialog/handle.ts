@@ -1,8 +1,11 @@
 import type { Catalog } from "../catalog.js";
 import type { Scenario } from "../engine/scenario.js";
+import type { Guides } from "../knowledge/guides.js";
+import type { LlmClient } from "../llm/client.js";
 import type { MaxClient } from "../max/client.js";
 import type { RawUpdateRecord } from "../store/raw-updates.js";
 import type { Store } from "../store/index.js";
+import type { SttClient } from "../stt/client.js";
 import { processRawUpdate, type ProcessResult } from "./process.js";
 
 // Обработка одного события, начиная с записи в `raw_updates`: погасить
@@ -16,6 +19,11 @@ export interface HandleDeps {
   catalog: Catalog;
   /** Нужен только для ответа на нажатие кнопки; остальное — через outbox. */
   max: Pick<MaxClient, "answerCallback">;
+  guides?: Guides;
+  llm?: LlmClient;
+  stt?: SttClient;
+  heroUrl?: string;
+  log?: (event: string, data?: Record<string, unknown>) => void;
   now?: () => number;
   newPublicId?: () => string;
 }
@@ -59,6 +67,11 @@ export async function handleRawUpdate(deps: HandleDeps, raw: RawUpdateRecord): P
         store: deps.store,
         scenario: deps.scenario,
         catalog: deps.catalog,
+        ...(deps.guides ? { guides: deps.guides } : {}),
+        ...(deps.llm ? { llm: deps.llm } : {}),
+        ...(deps.stt ? { stt: deps.stt } : {}),
+        ...(deps.heroUrl ? { heroUrl: deps.heroUrl } : {}),
+        ...(deps.log ? { log: deps.log } : {}),
         ...(deps.now ? { now: deps.now } : {}),
         ...(deps.newPublicId ? { newPublicId: deps.newPublicId } : {}),
       },

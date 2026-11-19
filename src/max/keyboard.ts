@@ -7,6 +7,8 @@ import type { StepView } from "../engine/render.js";
 
 export const NAV_BACK = "nav:back";
 export const NAV_RESTART = "nav:restart";
+export const HELP_STEP = "help:step";
+export const HELP_CHECKLIST = "help:checklist";
 
 export interface CallbackPayload {
   stepId: string;
@@ -22,7 +24,8 @@ export const encodeAnswerPayload: PayloadEncoder = (payload) =>
 
 export type DecodedCallback =
   | { kind: "answer"; stepId: string; value: string | string[] }
-  | { kind: "nav"; action: "back" | "restart" };
+  | { kind: "nav"; action: "back" | "restart" }
+  | { kind: "help"; target: "step" | "checklist" };
 
 function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === "string");
@@ -31,6 +34,8 @@ function isStringArray(value: unknown): value is string[] {
 export function decodeCallbackPayload(raw: string): DecodedCallback | undefined {
   if (raw === NAV_BACK) return { kind: "nav", action: "back" };
   if (raw === NAV_RESTART) return { kind: "nav", action: "restart" };
+  if (raw === HELP_STEP) return { kind: "help", target: "step" };
+  if (raw === HELP_CHECKLIST) return { kind: "help", target: "checklist" };
   try {
     const parsed = JSON.parse(raw) as { s?: unknown; v?: unknown };
     if (typeof parsed.s === "string" && (typeof parsed.v === "string" || isStringArray(parsed.v))) {
@@ -51,6 +56,8 @@ export interface BuildKeyboardOptions {
   /** Кнопок в ряду. По умолчанию 2 для коротких подписей, иначе 1. */
   perRow?: number;
   encode?: PayloadEncoder;
+  /** Добавить кнопку подсказки: «Не понятно» на шаге или «Как получить?» в чек-листе. */
+  help?: "step" | "checklist";
 }
 
 function chunk<T>(items: T[], size: number): T[][] {
@@ -89,6 +96,12 @@ export function buildKeyboard(
 
   const navRow = navButtons(nav);
   if (navRow.length > 0) rows.push(navRow);
+
+  if (options.help) {
+    const label = options.help === "step" ? "❓ Не понятно" : "❓ Как получить?";
+    const payload = options.help === "step" ? HELP_STEP : HELP_CHECKLIST;
+    rows.push([Keyboard.button.callback(label, payload)]);
+  }
 
   if (rows.length === 0) return undefined;
   return Keyboard.inlineKeyboard(rows);

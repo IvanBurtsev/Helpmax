@@ -45,6 +45,12 @@ function navFor(state: SessionState): { back: boolean; restart: boolean } {
   return { back: state.history.length > 0, restart: true };
 }
 
+// Показать текущий шаг без перехода — используется после ответа помощника,
+// чтобы вернуть пользователю вопрос и кнопки.
+export function presentState(scenario: Scenario, catalog: Catalog, state: SessionState): DialogOutcome {
+  return present(scenario, catalog, state);
+}
+
 function present(scenario: Scenario, catalog: Catalog, state: SessionState): DialogOutcome {
   const step = stepsById(scenario).get(state.currentStep);
   if (!step) {

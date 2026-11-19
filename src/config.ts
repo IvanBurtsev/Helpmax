@@ -31,9 +31,27 @@ const envSchema = z
     INTERNAL_API_TOKEN: z.string().min(1).optional(),
     LINK_SIGNING_KEY: z.string().min(1).optional(),
 
+    // LLM (подсказки по документам; DeepSeek — OpenAI-совместимый API)
+    LLM_API_KEY: z.string().min(1).optional(),
+    LLM_BASE_URL: z.string().url().default("https://api.deepseek.com"),
+    LLM_MODEL: z.string().min(1).default("deepseek-chat"),
+    LLM_MAX_TOKENS: z.coerce.number().int().min(1).max(4000).default(600),
+    LLM_TEMPERATURE: z.coerce.number().min(0).max(2).default(0.2),
+    LLM_TIMEOUT_MS: z.coerce.number().int().min(1000).default(20000),
+
+    // STT (голос → текст). DeepSeek текст не распознаёт, нужен отдельный сервис.
+    STT_API_KEY: z.string().min(1).optional(),
+    STT_BASE_URL: z.string().url().default("https://api.openai.com/v1"),
+    STT_MODEL: z.string().min(1).default("whisper-1"),
+    STT_TIMEOUT_MS: z.coerce.number().int().min(1000).default(30000),
+
     // Контент
     CATALOG_PATH: z.string().min(1).default("content/catalog.json"),
+    GUIDES_PATH: z.string().min(1).default("content/guides.json"),
     SCENARIO_PATH: z.string().min(1).default("content/scenarios/example.yaml"),
+
+    // Визуал
+    HERO_IMAGE_URL: z.string().url().optional(),
 
     // Воркер
     WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(50).default(5),

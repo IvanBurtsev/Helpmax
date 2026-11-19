@@ -2,6 +2,7 @@ import { Bot } from "@maxhub/max-bot-api";
 import type { Api, FetchFn } from "@maxhub/max-bot-api";
 import type {
   ActionResponse,
+  AttachmentRequest,
   BotCommand,
   BotInfo,
   InlineKeyboardAttachmentRequest,
@@ -44,6 +45,8 @@ export interface SendMessageParams {
   chatId: number;
   text: string;
   keyboard?: InlineKeyboardAttachmentRequest;
+  /** Дополнительные вложения (например, картинка). Клавиатура добавится сама. */
+  attachments?: AttachmentRequest[];
   format?: MessageTextFormat;
   disableLinkPreview?: boolean;
   notify?: boolean;
@@ -93,7 +96,11 @@ export class MaxClient {
 
   async sendMessage(params: SendMessageParams): Promise<Message> {
     const extra: SendExtra = {};
-    if (params.keyboard) extra.attachments = [params.keyboard];
+    const attachments: AttachmentRequest[] = [
+      ...(params.attachments ?? []),
+      ...(params.keyboard ? [params.keyboard] : []),
+    ];
+    if (attachments.length > 0) extra.attachments = attachments;
     if (params.format) extra.format = params.format;
     if (params.disableLinkPreview !== undefined) extra.disable_link_preview = params.disableLinkPreview;
     if (params.notify !== undefined) extra.notify = params.notify;

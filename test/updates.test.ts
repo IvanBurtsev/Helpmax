@@ -37,6 +37,25 @@ function messageCreated(mid: string): Update {
   } as unknown as Update;
 }
 
+function messageCreatedText(mid: string, text: string): Update {
+  const base = messageCreated(mid) as unknown as { message: { body: { text: string } } };
+  base.message.body.text = text;
+  return base as unknown as Update;
+}
+
+function messageWithAudio(mid: string, url: string): Update {
+  return {
+    update_type: "message_created",
+    timestamp: TS,
+    message: {
+      sender: user,
+      recipient: { chat_id: 10, chat_type: "dialog", user_id: 20, post_id: null },
+      timestamp: TS,
+      body: { mid, seq: 1, text: null, attachments: [{ type: "audio", payload: { url, token: "t" } }] },
+    },
+  } as unknown as Update;
+}
+
 describe("dedupeKey", () => {
   it("стабилен для одного и того же события", () => {
     expect(dedupeKey(callback("a"))).toBe(dedupeKey(callback("a")));
@@ -104,5 +123,33 @@ describe("parseUpdate", () => {
     expect(parsed.event).toBeUndefined();
     expect(parsed.chatId).toBe(10);
     expect(parsed.userId).toBe(20);
+  });
+
+  it("свободный текст → запрос подсказки, не ответ", () => {
+    const parsed = parseUpdate(messageCreated("m1"), TS * 1000);
+    expect(parsed.event).toBeUndefined();
+    expect(parsed.assist).toEqual({ kind: "text", text: "привет" });
+  });
+
+  it("команды /start и /restart → события диалога", () => {
+    const start = parseUpdate(messageCreatedText("m1", "/start"), TS * 1000);
+    expect(start.event).toEqual({ type: "start" });
+    expect(start.assist).toBeUndefined();
+    expect(parseUpdate(messageCreatedText("m2", "/restart"), TS * 1000).event).toEqual({ type: "restart" });
+  });
+
+  it("команда /help → подсказка по шагу", () => {
+    expect(parseUpdate(messageCreatedText("m1", "/help"), TS * 1000).assist).toEqual({ kind: "step" });
+  });
+
+  it("кнопки «Не понятно» и «Как получить?» → подсказка", () => {
+    expect(parseUpdate(callback("help:step"), TS * 1000).assist).toEqual({ kind: "step" });
+    expect(parseUpdate(callback("help:checklist"), TS * 1000).assist).toEqual({ kind: "checklist" });
+    expect(parseUpdate(callback("help:step"), TS * 1000).event).toBeUndefined();
+  });
+
+  it("голосовое сообщение → запрос распознавания", () => {
+    const parsed = parseUpdate(messageWithAudio("m1", "https://cdn.max.ru/voice.ogg"), TS * 1000);
+    expect(parsed.assist).toEqual({ kind: "voice", url: "https://cdn.max.ru/voice.ogg" });
   });
 });

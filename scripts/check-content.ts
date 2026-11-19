@@ -8,6 +8,7 @@ import path from "node:path";
 import { parse } from "yaml";
 import { validateCatalog, loadCatalog, type Catalog } from "../src/catalog.js";
 import { validateScenario } from "../src/engine/scenario.js";
+import { validateGuides } from "../src/knowledge/guides.js";
 
 const root = process.cwd();
 const catalogPath = path.join(root, "content", "catalog.json");
@@ -40,6 +41,23 @@ const counts: Record<string, number> = {};
 for (const doc of documents as Array<Record<string, unknown>>) {
   const rule = typeof doc["rule"] === "string" ? doc["rule"] : "<нет правила>";
   counts[rule] = (counts[rule] ?? 0) + 1;
+}
+
+// ---------- Гайды ----------
+
+const guidesPath = path.join(root, "content", "guides.json");
+let guidesCount = 0;
+if (fs.existsSync(guidesPath)) {
+  try {
+    const rawGuides = JSON.parse(fs.readFileSync(guidesPath, "utf8")) as Record<string, unknown>;
+    const codes = catalog ? new Set(catalog.byCode.keys()) : undefined;
+    errors.push(...validateGuides(rawGuides, codes));
+    guidesCount = Array.isArray(rawGuides["guides"]) ? (rawGuides["guides"] as unknown[]).length : 0;
+  } catch (error) {
+    errors.push(`guides: не удалось разобрать (${error instanceof Error ? error.message : String(error)})`);
+  }
+} else {
+  warnings.push("guides: нет content/guides.json (запустите npm run build:guides)");
 }
 
 // ---------- Сценарии ----------
@@ -75,6 +93,7 @@ const ruleSummary = Object.entries(counts)
 console.log(`Каталог: ${documents.length} документов, ${conditionsCount} условий`);
 console.log(`Правила: ${ruleSummary}`);
 console.log(`Сценарии: ${scenarioFiles.length}`);
+console.log(`Гайды: ${guidesCount} инструкций`);
 
 for (const warning of warnings) console.warn(`WARN  ${warning}`);
 for (const error of errors) console.error(`ERROR ${error}`);

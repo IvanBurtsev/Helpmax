@@ -16,8 +16,11 @@ import { deliverOutbox } from "./dialog/deliver.js";
 import { handleRawUpdate } from "./dialog/handle.js";
 import { loadScenario } from "./engine/scenario.js";
 import { loadDotEnv } from "./env.js";
+import { loadGuides } from "./knowledge/guides.js";
+import { createLlmClient } from "./llm/client.js";
 import { MaxClient } from "./max/client.js";
 import { createMemoryStore } from "./store/memory.js";
+import { createSttClient } from "./stt/client.js";
 import { isUpdateLike, parseUpdate } from "./updates.js";
 
 loadDotEnv();
@@ -30,7 +33,31 @@ if (!config.MAX_BOT_TOKEN) {
 
 const catalog = loadCatalog(config.CATALOG_PATH);
 const scenario = loadScenario(config.SCENARIO_PATH, catalog);
+const guides = loadGuides(config.GUIDES_PATH);
 const store = createMemoryStore();
+
+const llm = config.LLM_API_KEY
+  ? createLlmClient({
+      apiKey: config.LLM_API_KEY,
+      baseUrl: config.LLM_BASE_URL,
+      model: config.LLM_MODEL,
+      maxTokens: config.LLM_MAX_TOKENS,
+      temperature: config.LLM_TEMPERATURE,
+      timeoutMs: config.LLM_TIMEOUT_MS,
+    })
+  : undefined;
+const stt = config.STT_API_KEY
+  ? createSttClient({
+      apiKey: config.STT_API_KEY,
+      baseUrl: config.STT_BASE_URL,
+      model: config.STT_MODEL,
+      timeoutMs: config.STT_TIMEOUT_MS,
+    })
+  : undefined;
+
+const log = (event: string, data?: Record<string, unknown>): void => {
+  console.log(`· ${event}${data ? ` ${JSON.stringify(data)}` : ""}`);
+};
 
 // Таймаут транспорта должен быть больше времени long polling, иначе мы будем
 // рвать соединение раньше, чем MAX отдаст событие.
@@ -48,7 +75,16 @@ const me = await max.getMe().catch((error: unknown): never => {
 console.log(`Бот: ${me.first_name}${me.username ? ` (@${me.username})` : ""}, id ${me.user_id}`);
 console.log(`Сценарий: ${scenario.title} (${scenario.code} v${scenario.version})`);
 console.log(`Каталог: ${catalog.documents.length} документов, ${catalog.conditions.length} условий.`);
+console.log(`Подсказки: ${llm ? `LLM ${llm.model}` : "выключены (нет LLM_API_KEY)"}; голос: ${stt ? "включён" : "выключен"}.`);
 console.log("Откройте бота в MAX и нажмите «Начать». Ctrl+C — остановить.\n");
+
+await max
+  .setCommands([
+    { name: "start", description: "Начать подбор документов" },
+    { name: "help", description: "Подсказка по документу" },
+    { name: "restart", description: "Начать заново" },
+  ])
+  .catch(() => undefined);
 
 let stopped = false;
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
@@ -79,7 +115,20 @@ async function handle(update: unknown): Promise<void> {
   const raw = await store.rawUpdates.get(inserted.id);
   if (!raw) return;
 
-  const result = await handleRawUpdate({ store, scenario, catalog, max }, raw);
+  const result = await handleRawUpdate(
+    {
+      store,
+      scenario,
+      catalog,
+      max,
+      guides,
+      log,
+      ...(llm ? { llm } : {}),
+      ...(stt ? { stt } : {}),
+      ...(config.HERO_IMAGE_URL ? { heroUrl: config.HERO_IMAGE_URL } : {}),
+    },
+    raw,
+  );
 
   if (result.status === "done") {
     const delivery = await deliverOutbox({ outbox: store.outbox, max });
