@@ -17,6 +17,9 @@
     "test": "vitest run",
     "check:content": "tsx scripts/check-content.ts",
     "max:check": "tsx scripts/max-check.ts",
+    "sim": "tsx scripts/sim.ts",
+    "poll": "tsx scripts/poll.ts",
+    "check:db": "tsx scripts/smoke.ts",
     "migrate": "tsx src/migrate.ts",
     "worker": "tsx src/worker.ts"
   },

@@ -124,7 +124,13 @@ function memoryStore(): Memory {
     },
   };
 
-  return { store: { sessions: sessionsRepo, rawUpdates, outbox }, sessions, answers, enqueued };
+  const scenarios = {
+    async register() {
+      /* не используется */
+    },
+  };
+
+  return { store: { sessions: sessionsRepo, rawUpdates, outbox, scenarios }, sessions, answers, enqueued };
 }
 
 function raw(id: string, payload: unknown, chatId: number | null = 10, userId: number | null = 20): RawUpdateRecord {

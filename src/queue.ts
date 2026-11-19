@@ -27,10 +27,15 @@ export function createOutboxQueue(connection: Redis): Queue<OutboxJobData> {
   return new Queue<OutboxJobData>(QUEUE_OUTBOX, { connection });
 }
 
-// Постановка события: jobId = id записи, поэтому повторный webhook не создаёт
-// вторую задачу, а BullMQ сам отбросит дубль.
+// Постановка события: jobId = `update-<id записи>`, поэтому повторный webhook
+// не создаёт вторую задачу. Префикс обязателен: BullMQ не принимает
+// целочисленные jobId и (пока) jobId с двоеточием — а id здесь bigserial.
 export async function enqueueUpdate(queue: Queue<UpdateJobData>, rawUpdateId: string): Promise<void> {
-  await queue.add(JOB_UPDATE, { rawUpdateId }, { jobId: rawUpdateId, removeOnComplete: 1000, removeOnFail: 5000 });
+  await queue.add(
+    JOB_UPDATE,
+    { rawUpdateId },
+    { jobId: `update-${rawUpdateId}`, removeOnComplete: 1000, removeOnFail: 5000 },
+  );
 }
 
 export async function enqueueOutboxDelivery(queue: Queue<OutboxJobData>, reason: string): Promise<void> {

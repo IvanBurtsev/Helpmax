@@ -2,10 +2,12 @@
 
 > Если вы агент, который продолжает работу — сначала прочитайте `AGENTS.md`.
 
-Статус: **ревизия 5 (19.11.2026)**. Есть архитектура, контентная модель,
+Статус: **ревизия 6 (19.11.2026)**. Есть архитектура, контентная модель,
 проверяемый пример сценария, движок, транспорт MAX, миграции, локальный Docker,
-а также хранилище (Postgres/Redis) и воркер: webhook → очередь → движок →
-outbox → MAX. Интеграция с сайтом, CI и админка — следующие шаги.
+хранилище (Postgres/Redis) и воркер: webhook → очередь → движок → outbox → MAX.
+Путь собран и проверен на живой БД (`npm run check:db`). Есть локальный запуск
+без MAX (`npm run sim`) и боевой тест через long polling (`npm run poll`).
+Интеграция с сайтом, CI и админка — следующие шаги.
 
 > Документация сверена с официальным API MAX 19.11.2026:
 > <https://dev.max.ru/docs-api/>. Базовый URL — `https://platform-api2.max.ru`,
@@ -68,7 +70,7 @@ outbox → MAX. Интеграция с сайтом, CI и админка — �
 ├── .gitignore
 ├── AGENTS.md               # точка входа для следующего агента
 ├── README.md
-├── package.json            # скрипты: dev, build, start, typecheck, test, check:content
+├── package.json            # скрипты: dev, worker, build, test, sim, poll, check:db
 ├── tsconfig.json           # проверка типов (src + test + scripts)
 ├── tsconfig.build.json     # сборка src → dist
 ├── docs/
@@ -93,7 +95,10 @@ outbox → MAX. Интеграция с сайтом, CI и админка — �
 ├── .dockerignore
 ├── scripts/
 │   ├── check-content.ts    # проверка сценария и каталога без сети
-│   └── max-check.ts        # проверка токена MAX (GET /me)
+│   ├── max-check.ts        # проверка токена MAX (GET /me)
+│   ├── sim.ts              # симулятор диалога в терминале (без БД и сети)
+│   ├── poll.ts             # запуск бота через long polling MAX (без БД)
+│   └── smoke.ts            # смоук-тест пути на живой БД (доставка — подменная)
 ├── src/
 │   ├── config.ts           # валидация env (zod)
 │   ├── env.ts              # загрузка .env
@@ -105,11 +110,13 @@ outbox → MAX. Интеграция с сайтом, CI и админка — �
 │   ├── updates.ts          # разбор событий MAX: dedupe_key и событие диалога
 │   ├── migrate.ts          # CLI применения миграций
 │   ├── db/                 # pool (pg) и раннер миграций
-│   ├── store/              # Postgres (сессии, raw_updates, outbox) и Redis
+│   ├── store/              # Postgres (сессии, raw_updates, outbox, scenarios),
+│   │                       #   Redis и хранилище в памяти (memory.ts)
 │   ├── dialog/             # оркестратор, экраны, обработка, доставка
 │   ├── engine/             # scenario, conditions, checklist, progress, render, transition
 │   └── max/                # транспорт MAX (SDK): rate-limit, fetch, keyboard, client
-└── test/                   # vitest: контент, движок, транспорт, хранилище, диалог, webhook
+└── test/                   # vitest: контент, движок, транспорт, хранилище, диалог,
+                            #   очередь, webhook, память
 ```
 
 ## Переменные окружения
@@ -125,6 +132,10 @@ MAX_WEBHOOK_SECRET=         # 5–256 символов [A-Za-z0-9_-]
 # Хранилища
 DATABASE_URL=postgres://...
 REDIS_URL=redis://...
+
+# Хост-порты docker compose (если 5432/6379 заняты — задайте другие)
+POSTGRES_PORT=5432
+REDIS_PORT=6379
 
 # Интеграция с сайтом
 SITE_BASE_URL=https://sales.femida-ai.ru
@@ -176,12 +187,49 @@ npm run start:worker   # запуск собранного воркера
 npm run check:content  # проверка сценария и каталога без сети
 npm run max:check      # проверка токена MAX (GET /me, токен не выводится)
 npm run migrate        # применить миграции к DATABASE_URL
+npm run sim            # симулятор диалога в терминале (без БД, Redis и MAX)
+npm run poll           # бот через long polling MAX (без БД; нужен MAX_BOT_TOKEN)
+npm run check:db       # смоук-тест пути на живой БД (без сети MAX)
 ```
 
 Сервер (`server.ts`) и воркер (`worker.ts`) — разные процессы: HTTP отдаёт 200
 сразу, а разбор события и отправка сообщений идут в воркере. Локально нужны
 `DATABASE_URL` и `REDIS_URL` (поднять: `docker compose up -d postgres redis`),
 воркеру ещё и `MAX_BOT_TOKEN`.
+
+### Как потестировать бота локально
+
+Три способа — от самого простого к боевому:
+
+1. **Симулятор в терминале** — вообще ничего не нужно, кроме Node:
+
+   ```powershell
+   npm run sim
+   ```
+
+   Тот же движок, каталог и сценарий, что в бою, но диалог идёт в консоли.
+   Отвечайте номером варианта; «н» — назад, «r» — заново, «q» — выход.
+
+2. **Живой бот в MAX через long polling** — нужен только `MAX_BOT_TOKEN`,
+   публичный webhook не требуется:
+
+   ```powershell
+   npm run poll
+   ```
+
+   Откройте бота в MAX и нажмите «Начать». Работает тот же путь события и
+   доставка, но состояние держится в памяти (Postgres/Redis не нужны).
+
+3. **Боевой путь (webhook + воркер)** — как в проде:
+
+   ```powershell
+   docker compose up -d postgres redis
+   npm run migrate
+   npm run dev            # сервер
+   npm run dev:worker     # воркер (в отдельном окне)
+   ```
+
+   Либо целиком в Docker: `docker compose up --build`.
 
 ### Локальный запуск в Docker
 
@@ -195,7 +243,8 @@ docker compose up --build
 
 Секреты Compose берёт из `.env` рядом с `docker-compose.yml`. Локально
 `NODE_ENV=development`, поэтому токен MAX необязателен — но без него воркер
-не запустится (он отвечает за отправку сообщений). Отдельно миграции:
+не запустится (он отвечает за отправку сообщений). Если порт 5432 или 6379
+занят, задайте `POSTGRES_PORT`/`REDIS_PORT` в `.env`. Отдельно миграции:
 
 ```powershell
 docker compose run --rm migrate

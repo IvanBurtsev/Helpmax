@@ -1,9 +1,11 @@
 import type { Pool } from "pg";
 import { describe, expect, it } from "vitest";
+import type { Scenario } from "../src/engine/scenario.js";
 import type { SessionState } from "../src/engine/transition.js";
 import { createStore, poolToQueryable } from "../src/store/index.js";
 import { OutboxStore } from "../src/store/outbox.js";
 import { RawUpdateStore } from "../src/store/raw-updates.js";
+import { ScenarioStore } from "../src/store/scenarios.js";
 import { SessionStore } from "../src/store/sessions.js";
 import { toNullableNumber, toNullableString, toNumber, type Queryable, type QueryResultLike } from "../src/store/sql.js";
 
@@ -211,6 +213,32 @@ describe("OutboxStore", () => {
     expect(db.calls[0]?.values).toEqual(["o1", "mid-1"]);
     expect(db.calls[1]?.text).toContain("status = 'pending'");
     expect(db.calls[2]?.text).toContain("status = 'dead'");
+  });
+});
+
+describe("ScenarioStore", () => {
+  it("register делает upsert по (code, version) и не трогает status", async () => {
+    const db = new FakeDb(() => result([]));
+    const store = new ScenarioStore(db);
+    const scenario: Scenario = {
+      code: "bankruptcy",
+      version: 1,
+      title: "Банкротство",
+      status: "draft",
+      disclaimer: "информационный сервис, не юридическая услуга",
+      start: "who",
+      steps: [{ id: "who", type: "choice", text: "Кто вы?", options: [{ id: "person", label: "Физлицо" }] }],
+    };
+
+    await store.register(scenario);
+
+    expect(db.calls[0]?.text).toContain("on conflict (code, version) do update");
+    expect(db.calls[0]?.text).toContain("$5::jsonb");
+    // status и published_at при конфликте не перезаписываются
+    expect(db.calls[0]?.text).not.toContain("status = excluded.status");
+    expect(db.calls[0]?.values?.[0]).toBe("bankruptcy");
+    expect(db.calls[0]?.values?.[1]).toBe(1);
+    expect(db.calls[0]?.values?.[4]).toBe(JSON.stringify(scenario));
   });
 });
 

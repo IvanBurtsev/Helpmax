@@ -2,10 +2,12 @@
 
 Проект: MAX-бот «Фемида AI» — подбор документов для клиента.
 Рабочая папка: `C:\projects`. Язык общения с пользователем: **русский**.
-Статус на 19.11.2026: **ревизия 5 — есть каркас, движок, транспорт MAX,
-миграции, Docker, хранилище (Postgres/Redis) и воркер**. Путь
-webhook → очередь → движок → outbox → MAX собран и покрыт тестами. Осталось:
-интеграция с сайтом, админка, CI. Что менялось — в `docs/review-2026-11-19.md`.
+Статус на 19.11.2026: **ревизия 6 — каркас, движок, транспорт MAX, миграции,
+Docker, хранилище (Postgres/Redis) и воркер готовы**. Путь
+webhook → очередь → движок → outbox → MAX собран, покрыт тестами и проверен на
+живой БД (`npm run check:db`). Есть локальный запуск без MAX (`npm run sim`) и
+боевой тест через long polling (`npm run poll`). Осталось: интеграция с сайтом,
+админка, CI. Что менялось — в `docs/review-2026-11-19.md`.
 
 ---
 
@@ -165,7 +167,8 @@ C:\projects
 ├── README.md                     обзор, стек, env
 ├── package.json                  скрипты: dev, dev:worker, build, start,
 │                                 start:worker, worker, typecheck, test,
-│                                 check:content, max:check, migrate
+│                                 check:content, max:check, migrate,
+│                                 sim, poll, check:db
 ├── .env.example                  шаблон env, без секретов
 ├── .gitignore
 ├── docs/
@@ -185,7 +188,10 @@ C:\projects
 ├── migrations/0001_init.sql      исполняемая миграция (сверяется со schema.sql тестом)
 ├── scripts/
 │   ├── check-content.ts          проверка сценария и каталога
-│   └── max-check.ts              проверка токена MAX (GET /me)
+│   ├── max-check.ts              проверка токена MAX (GET /me)
+│   ├── sim.ts                    симулятор диалога в терминале (без БД и сети)
+│   ├── poll.ts                   запуск бота через long polling MAX (без БД)
+│   └── smoke.ts                  смоук-тест пути на живой БД (доставка — подменная)
 ├── src/
 │   ├── config.ts                 валидация env (zod), падение на старте
 │   ├── env.ts                    загрузка .env (process.loadEnvFile)
@@ -197,14 +203,15 @@ C:\projects
 │   ├── updates.ts                разбор событий MAX: dedupe_key, событие
 │   ├── migrate.ts                CLI применения миграций
 │   ├── db/                       pool (pg) + раннер миграций
-│   ├── store/                    Postgres (сессии, raw_updates, outbox) + Redis
+│   ├── store/                    Postgres (сессии, raw_updates, outbox,
+│   │                             scenarios), Redis, хранилище в памяти (memory.ts)
 │   ├── dialog/                   оркестратор, экраны, обработка, доставка
 │   ├── engine/                   движок: scenario, conditions, checklist,
 │   │                             progress, render, transition
 │   └── max/                      транспорт MAX (SDK): rate-limit, fetch,
 │                                 keyboard, client
 ├── test/                         vitest: контент, движок, транспорт, хранилище,
-│                                 диалог, webhook, инфра
+│                                 диалог, очередь, webhook, память, инфра
 ├── Dockerfile                    образ (build → runtime, без dev-зависимостей)
 ├── docker-compose.yml            Postgres, Redis, migrate, app, worker
 ├── .dockerignore
@@ -248,7 +255,10 @@ npx tsc --init
 - [x] `scripts/check-content.ts` — проверка сценария и каталога без сети.
 - [x] `migrations/` + `src/migrate.ts` — раннер миграций (из `db/schema.sql`).
 - [x] `Dockerfile` + `docker-compose.yml` — локальные Postgres/Redis и прогон.
-- [x] `src/store/` — Postgres (сессии, raw_updates, outbox), Redis (соединение, локи).
+- [x] `src/store/` — Postgres (сессии, raw_updates, outbox, scenarios), Redis (соединение, локи).
+- [x] `src/store/scenarios.ts` — регистрация версии сценария (на неё ссылается sessions).
+- [x] `src/store/memory.ts` — хранилище в памяти для локального запуска и тестов.
+- [x] `scripts/sim.ts` / `poll.ts` / `smoke.ts` — симулятор, long polling, смоук на БД.
 - [x] `src/updates.ts` — разбор событий MAX: `dedupe_key` + событие диалога.
 - [x] `src/dialog/` — оркестратор, экраны, обработка события, доставка outbox.
 - [x] `src/queue.ts` + `src/worker.ts` — очереди BullMQ и воркер.

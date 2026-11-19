@@ -37,6 +37,11 @@ const scenario = loadScenario(config.SCENARIO_PATH, catalog);
 
 const pool = createPool(config.DATABASE_URL);
 const store = createStore(pool);
+
+// Сессии ссылаются на (code, version) сценария по внешнему ключу — строку
+// нужно зарегистрировать до первого события.
+await store.scenarios.register(scenario);
+
 const max = new MaxClient({ token: config.MAX_BOT_TOKEN, baseUrl: config.MAX_API_BASE });
 
 const producerRedis = createRedis(config.REDIS_URL);
