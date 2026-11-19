@@ -182,6 +182,7 @@ C:\projects
 │   ├── security.md               угрозы, лимиты, 152-ФЗ, LLM
 │   ├── operations.md             логи, метрики, кэш, SLO, runbook
 │   ├── integration.md            deep links, API, события
+│   ├── deploy-server.md          рунбук сервера (additive) + корень MAX
 │   └── review-2026-11-19.md      что исправлено в ревизии 2
 ├── content/
 │   ├── catalog.json              реальный каталог (46 документов, 13 условий)

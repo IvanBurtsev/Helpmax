@@ -83,6 +83,7 @@
 │   ├── security.md         # угрозы, вебхук, лимиты, 152-ФЗ, LLM
 │   ├── operations.md       # логи, метрики, кэш, SLO, runbook
 │   ├── integration.md      # сайт, deep links, API, CRM
+│   ├── deploy-server.md    # рунбук сервера (additive) + корень MAX
 │   └── review-2026-11-19.md # что исправлено при ревизиях
 ├── content/
 │   ├── catalog.json        # реальный каталог документов с сайта (46 шт.)
@@ -253,6 +254,18 @@ docker compose up --build
 ```powershell
 docker compose run --rm migrate
 ```
+
+## Деплой на сервер
+
+Пробный стенд развёрнут на `45.152.202.114` в `/root/helpmax` — **только
+добавление**, чужие проекты и сервисы не трогаем. Подробный рунбук:
+[`docs/deploy-server.md`](docs/deploy-server.md).
+
+Важная деталь: MAX отдаёт сертификат, подписанный российским корнем
+(Russian Trusted Root CA), которого нет в доверенных корнях Node. Без него
+запросы падают с `fetch failed` (`UNABLE_TO_GET_ISSUER_CERT_LOCALLY`). Корень
+подключается **только нашему процессу** через `NODE_EXTRA_CA_CERTS` — системное
+хранилище не трогаем (сервер общий). Отпечаток и команды — в рунбуке.
 
 ## Что нужно от вас, чтобы стартовать
 
