@@ -177,7 +177,8 @@ C:\projects
 ├── content/
 │   ├── catalog.json              реальный каталог (46 документов, 13 условий)
 │   └── scenarios/example.yaml    пример catalog-driven сценария (черновик, нужен юрист)
-├── db/schema.sql                 схема Postgres
+├── db/schema.sql                 схема Postgres (читаемая копия)
+├── migrations/0001_init.sql      исполняемая миграция (сверяется со schema.sql тестом)
 ├── scripts/
 │   ├── check-content.ts          проверка сценария и каталога
 │   └── max-check.ts              проверка токена MAX (GET /me)
@@ -186,11 +187,16 @@ C:\projects
 │   ├── env.ts                    загрузка .env (process.loadEnvFile)
 │   ├── catalog.ts                каталог: id→code, name→title, required
 │   ├── server.ts                 Fastify: /healthz, /webhook
+│   ├── migrate.ts                CLI применения миграций
+│   ├── db/                       pool (pg) + раннер миграций
 │   ├── engine/                   движок: scenario, conditions, checklist,
 │   │                             progress, render, transition
 │   └── max/                      транспорт MAX (SDK): rate-limit, fetch,
 │                                 keyboard, client
-├── test/                         vitest: контент, движок, транспорт
+├── test/                         vitest: контент, движок, транспорт, инфра
+├── Dockerfile                    образ (build → runtime, без dev-зависимостей)
+├── docker-compose.yml            Postgres, Redis, migrate, app
+├── .dockerignore
 ├── tsconfig.json                 проверка типов (src + test + scripts)
 └── tsconfig.build.json           сборка src → dist
 ```
@@ -229,9 +235,10 @@ npx tsc --init
 - [x] `src/catalog.ts` — загрузка `content/catalog.json`, маппинг `id → code`,
   `name → title`.
 - [x] `scripts/check-content.ts` — проверка сценария и каталога без сети.
+- [x] `migrations/` + `src/migrate.ts` — раннер миграций (из `db/schema.sql`).
+- [x] `Dockerfile` + `docker-compose.yml` — локальные Postgres/Redis и прогон.
 - [ ] `src/store/` — Postgres (сессии, raw_updates, outbox), Redis (кэш, лимиты).
 - [ ] `src/worker.ts` — обработка очереди, outbox.
-- [ ] `migrations/` — из `db/schema.sql`.
 
 Обязательно с первого дня:
 - проверка `X-Max-Bot-Api-Secret` через `timingSafeEqual`;

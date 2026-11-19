@@ -204,6 +204,12 @@ UPDATE sessions SET state = $3, version = version + 1 WHERE id = $1 AND version 
 Источник истины: пользователи, сессии, ответы, документы, сценарии, лиды,
 raw_updates, outbox, audit. Схема — в `db/schema.sql`.
 
+Миграции: `migrations/NNNN_name.sql` + `src/migrate.ts`. Каждый файл применяется
+в своей транзакции, применённые отмечаются в `schema_migrations`. Запуск —
+`npm run migrate` (dev) или `node dist/migrate.js` (прод); в Docker это сервис
+`migrate`, который завершается до старта `app`. `db/schema.sql` — читаемая копия
+базовой схемы, тест следит, что она не расходится с `0001_init.sql`.
+
 `raw_updates.payload` содержит полный входящий `Update`, включая текст сообщения.
 Это потенциальные ПД: хранить 30 дней, шифровать диск, не выгружать в общие логи,
 доступ — только сервисной роли.

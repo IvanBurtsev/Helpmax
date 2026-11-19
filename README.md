@@ -84,7 +84,12 @@
 │   ├── catalog.json        # реальный каталог документов с сайта (46 шт.)
 │   └── scenarios/
 │       └── example.yaml    # пример catalog-driven сценария (черновик, требует юриста)
-├── db/schema.sql           # схема БД
+├── db/schema.sql           # схема БД (читаемая копия; сверяется с 0001_init тестом)
+├── migrations/
+│   └── 0001_init.sql       # исполняемая миграция (источник истины для БД)
+├── Dockerfile              # сборка образа (build → runtime, без dev-зависимостей)
+├── docker-compose.yml      # Postgres, Redis, migrate, app для локального запуска
+├── .dockerignore
 ├── scripts/
 │   ├── check-content.ts    # проверка сценария и каталога без сети
 │   └── max-check.ts        # проверка токена MAX (GET /me)
@@ -93,9 +98,11 @@
 │   ├── env.ts              # загрузка .env
 │   ├── catalog.ts          # каталог: id→code, name→title, required
 │   ├── server.ts           # Fastify: /healthz, /webhook
+│   ├── migrate.ts          # CLI применения миграций
+│   ├── db/                 # pool (pg) и раннер миграций
 │   ├── engine/             # scenario, conditions, checklist, progress, render, transition
 │   └── max/                # транспорт MAX (SDK): rate-limit, fetch, keyboard, client
-└── test/                   # vitest: контент, движок, транспорт
+└── test/                   # vitest: контент, движок, транспорт, инфраструктура
 ```
 
 ## Переменные окружения
@@ -154,6 +161,23 @@ npm run build          # сборка src → dist
 npm run start          # запуск собранного сервера
 npm run check:content  # проверка сценария и каталога без сети
 npm run max:check      # проверка токена MAX (GET /me, токен не выводится)
+npm run migrate        # применить миграции к DATABASE_URL
+```
+
+### Локальный запуск в Docker
+
+Postgres, Redis и приложение поднимаются одной командой; миграции применяются
+автоматически перед стартом приложения (сервис `migrate`, затем `app`):
+
+```powershell
+docker compose up --build
+```
+
+Секреты Compose берёт из `.env` рядом с `docker-compose.yml`. Локально
+`NODE_ENV=development`, поэтому токен MAX необязателен. Отдельно миграции:
+
+```powershell
+docker compose run --rm migrate
 ```
 
 ## Что нужно от вас, чтобы стартовать
