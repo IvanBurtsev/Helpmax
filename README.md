@@ -2,9 +2,9 @@
 
 > Если вы агент, который продолжает работу — сначала прочитайте `AGENTS.md`.
 
-Статус: **ревизия 3 (19.11.2026)**. Есть архитектура, контентная модель,
-проверяемый пример сценария и собранный каркас: конфиг, каталог, движок и тесты.
-Транспорт MAX и хранилища — следующие шаги.
+Статус: **ревизия 4 (19.11.2026)**. Есть архитектура, контентная модель,
+проверяемый пример сценария и собранный каркас: конфиг, каталог, движок,
+транспорт MAX и тесты. Хранилища, очередь и интеграция с сайтом — следующие шаги.
 
 > Документация сверена с официальным API MAX 19.11.2026:
 > <https://dev.max.ru/docs-api/>. Базовый URL — `https://platform-api2.max.ru`,
@@ -86,14 +86,16 @@
 │       └── example.yaml    # пример catalog-driven сценария (черновик, требует юриста)
 ├── db/schema.sql           # схема БД
 ├── scripts/
-│   └── check-content.ts    # проверка сценария и каталога без сети
+│   ├── check-content.ts    # проверка сценария и каталога без сети
+│   └── max-check.ts        # проверка токена MAX (GET /me)
 ├── src/
 │   ├── config.ts           # валидация env (zod)
 │   ├── env.ts              # загрузка .env
 │   ├── catalog.ts          # каталог: id→code, name→title, required
 │   ├── server.ts           # Fastify: /healthz, /webhook
-│   └── engine/             # scenario, conditions, checklist, progress, render, transition
-└── test/                   # vitest: контент + движок
+│   ├── engine/             # scenario, conditions, checklist, progress, render, transition
+│   └── max/                # транспорт MAX (SDK): rate-limit, fetch, keyboard, client
+└── test/                   # vitest: контент, движок, транспорт
 ```
 
 ## Переменные окружения
@@ -147,10 +149,11 @@ npm run check:content
 ```powershell
 npm run dev            # сервер с watch (tsx), читает .env
 npm run typecheck      # tsc по src + test + scripts
-npm run test           # vitest (контент + движок)
+npm run test           # vitest (контент, движок, транспорт)
 npm run build          # сборка src → dist
 npm run start          # запуск собранного сервера
 npm run check:content  # проверка сценария и каталога без сети
+npm run max:check      # проверка токена MAX (GET /me, токен не выводится)
 ```
 
 ## Что нужно от вас, чтобы стартовать

@@ -169,6 +169,24 @@ UPDATE sessions SET state = $3, version = version + 1 WHERE id = $1 AND version 
 (заголовок `Authorization`, лимиты), `Keyboard`, `fmt`. Это использование SDK по
 назначению, а не отказ от него.
 
+## Транспорт MAX
+
+Отправка и правка сообщений, ответы на колбэки и клавиатуры — в `src/max/`
+поверх официального SDK. Свой HTTP-клиент не пишем: SDK уже умеет заголовок
+`Authorization`, диплинки и загрузки.
+
+- `rate-limit.ts` — токен-бакет (25 rps); часы и `sleep` инъектируются, поэтому
+  логика тестируется без реального времени;
+- `fetch.ts` — обёртка над `fetch` **ниже** SDK (через `clientOptions.fetch`):
+  таймаут, повторы с backoff и джиттером для 429/5xx и сетевых ошибок, учёт
+  `Retry-After`;
+- `keyboard.ts` — `StepView` → `inline_keyboard`, payload `{s,v}` и навигация;
+- `client.ts` — `MaxClient`: `sendMessage`, `editMessage`, `answerCallback`,
+  `getMe`; ловит HTTP 200 с `success:false` и бросает `MaxActionError`.
+
+Всё проверяется без сети: лимит — с фейковыми часами, транспорт — с подменным
+`fetch`. Токен проверяется командой `npm run max:check` (GET `/me`).
+
 ## Асинхронность: что именно проверяем
 
 | Гарантия | Как достигаем | Как проверяем |
