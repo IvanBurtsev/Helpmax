@@ -1,0 +1,70 @@
+import { z } from "zod";
+
+// Конфигурация окружения. Читается один раз при старте и падает, если что-то
+// не так — лучше упасть на старте, чем на первом сообщении клиента.
+
+const logLevels = ["fatal", "error", "warn", "info", "debug", "trace", "silent"] as const;
+
+const envSchema = z
+  .object({
+    NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+    PORT: z.coerce.number().int().min(1).max(65535).default(3000),
+    LOG_LEVEL: z.enum(logLevels).default("info"),
+
+    // MAX
+    MAX_BOT_TOKEN: z.string().min(1).optional(),
+    MAX_API_BASE: z.string().url().default("https://platform-api2.max.ru"),
+    MAX_WEBHOOK_SECRET: z
+      .string()
+      .min(5)
+      .max(256)
+      .regex(/^[A-Za-z0-9_-]+$/, "допустимы только символы [A-Za-z0-9_-]")
+      .optional(),
+
+    // Хранилища
+    DATABASE_URL: z.string().min(1).optional(),
+    REDIS_URL: z.string().min(1).optional(),
+
+    // Интеграция с сайтом
+    SITE_BASE_URL: z.string().url().default("https://sales.femida-ai.ru"),
+    SITE_SERVICE_TOKEN: z.string().min(1).optional(),
+    INTERNAL_API_TOKEN: z.string().min(1).optional(),
+    LINK_SIGNING_KEY: z.string().min(1).optional(),
+
+    // Контент
+    CATALOG_PATH: z.string().min(1).default("content/catalog.json"),
+
+    // Прочее
+    OTEL_EXPORTER_OTLP_ENDPOINT: z.string().url().optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.NODE_ENV !== "production") return;
+    const required = ["MAX_BOT_TOKEN", "MAX_WEBHOOK_SECRET", "DATABASE_URL"] as const;
+    for (const key of required) {
+      if (!value[key]) {
+        ctx.addIssue({ code: "custom", path: [key], message: "обязательно в production" });
+      }
+    }
+  });
+
+export type Config = z.infer<typeof envSchema>;
+
+// В .env пустые значения (MAX_BOT_TOKEN=) означают «не задано».
+function withoutEmpty(env: NodeJS.ProcessEnv): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(env)) {
+    if (typeof value === "string" && value.trim() !== "") out[key] = value;
+  }
+  return out;
+}
+
+export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
+  const result = envSchema.safeParse(withoutEmpty(env));
+  if (!result.success) {
+    const details = result.error.issues
+      .map((issue) => `  - ${issue.path.join(".") || "(root)"}: ${issue.message}`)
+      .join("\n");
+    throw new Error(`Некорректная конфигурация окружения:\n${details}`);
+  }
+  return result.data;
+}

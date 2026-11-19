@@ -181,4 +181,4 @@ conditions:
 # Действия после результата
 on_complete:
   - event: checklist.ready
-  - allow: [export_pdf, open_site, handoff]
+    allow: [export_pdf, open_site, handoff]

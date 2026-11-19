@@ -1,11 +1,17 @@
 import { timingSafeEqual } from "node:crypto";
 import Fastify from "fastify";
+import { loadConfig } from "./config.js";
+import { loadDotEnv } from "./env.js";
 
 // Каркас (шаг 3 плана). Пока только приём webhook и health-check.
 // Очередь, движок и хранилища добавятся следующими шагами.
 
+loadDotEnv();
+
+const config = loadConfig();
+
 const app = Fastify({
-  logger: { level: process.env.LOG_LEVEL ?? "info" },
+  logger: { level: config.LOG_LEVEL },
 });
 
 function safeEqual(a: string, b: string): boolean {
@@ -20,7 +26,7 @@ app.get("/healthz", async () => ({ status: "ok" }));
 // MAX присылает сюда события. Проверяем секрет и отвечаем 200 сразу;
 // обработка события — асинхронно (очередь, шаг 3).
 app.post("/webhook", async (request, reply) => {
-  const secret = process.env.MAX_WEBHOOK_SECRET ?? "";
+  const secret = config.MAX_WEBHOOK_SECRET ?? "";
   const got = request.headers["x-max-bot-api-secret"];
 
   if (!secret || typeof got !== "string" || !safeEqual(got, secret)) {
@@ -30,10 +36,8 @@ app.post("/webhook", async (request, reply) => {
   return reply.code(200).send({ ok: true });
 });
 
-const port = Number(process.env.PORT ?? 3000);
-
 try {
-  await app.listen({ port, host: "0.0.0.0" });
+  await app.listen({ port: config.PORT, host: "0.0.0.0" });
 } catch (error) {
   app.log.error(error);
   process.exit(1);

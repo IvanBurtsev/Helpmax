@@ -2,8 +2,8 @@
 
 Проект: MAX-бот «Фемида AI» — подбор документов для клиента.
 Рабочая папка: `C:\projects`. Язык общения с пользователем: **русский**.
-Статус на 19.11.2026: **ревизия 2 — документация сверена, кода бота нет**.
-Следующий шаг — каркас и один сценарий. Что изменилось в ревизии 2:
+Статус на 19.11.2026: **ревизия 3 — документация сверена, собран каркас и
+движок (шаги 2–3 плана), есть тесты**. Что изменилось в ревизиях 2 и 3:
 `docs/review-2026-11-19.md`.
 
 ---
@@ -105,6 +105,11 @@ POST /api/rules-chat
    «уточнит юрист».
 8. **13 `always` — слишком много для клиента.** Выводим прогрессивно: сначала 5–7
    ключевых, остальное — «после консультации».
+9. **Свой data-driven движок, а не `ScenarioEngine` из SDK.** У официального SDK
+   есть `ScenarioEngine`/`defineScenario`, но он код-driven (шаги — функции TS) и
+   хранит состояние в сессии (по умолчанию в памяти). Нам нужен YAML без деплоя
+   кода, версионирование и мультиреплика. Из SDK берём транспорт (`Api`,
+   `Keyboard`, `fmt`), а не диалоговый граф.
 
 ## 4. Стек
 
@@ -114,7 +119,8 @@ POST /api/rules-chat
 - Админка — Next.js или React + API (позже).
 - Официальная JS-библиотека MAX: пакет `@maxhub/max-bot-api`
   (репозиторий `max-messenger/max-bot-api-client-ts`).
-- Условия сценария — `jsonlogic` (не `eval`).
+- Условия сценария — `json-logic-js` (не `eval` и не пакет `jsonlogic`, который
+  сломан: его `apply` не возвращает результат).
 
 Код и идентификаторы — на английском, тексты для пользователя — на русском.
 
@@ -144,6 +150,8 @@ POST /api/rules-chat
 - SDK `@maxhub/max-bot-api` по умолчанию хранит сессии в памяти процесса.
   Для нескольких инстансов нужно внешнее хранилище (Redis/Postgres), иначе
   после рестарта сессии потеряются.
+- В SDK есть свой `ScenarioEngine` (`defineScenario`, `transition`) — код-driven.
+  Для графа мы его не используем (см. решение 9), но берём `Api`/`Keyboard`/`fmt`.
 
 ## 6. Структура проекта
 
@@ -168,8 +176,17 @@ C:\projects
 │   ├── catalog.json              реальный каталог (46 документов, 13 условий)
 │   └── scenarios/example.yaml    пример catalog-driven сценария (черновик, нужен юрист)
 ├── db/schema.sql                 схема Postgres
-├── scripts/check-content.mjs     проверка сценария и каталога
-└── src/                          пусто, создать
+├── scripts/check-content.ts      проверка сценария и каталога
+├── src/
+│   ├── config.ts                 валидация env (zod), падение на старте
+│   ├── env.ts                    загрузка .env (process.loadEnvFile)
+│   ├── catalog.ts                каталог: id→code, name→title, required
+│   ├── server.ts                 Fastify: /healthz, /webhook
+│   └── engine/                   движок: scenario, conditions, checklist,
+│                                 progress, render, transition
+├── test/                         vitest: контент + движок
+├── tsconfig.json                 проверка типов (src + test + scripts)
+└── tsconfig.build.json           сборка src → dist
 ```
 
 ## 7. Что делать дальше (по приоритету)
@@ -186,7 +203,7 @@ C:\projects
 ```powershell
 cd C:\projects
 git init
-npm i fastify zod pino ioredis pg bullmq jsonlogic @maxhub/max-bot-api
+npm i fastify zod pino ioredis pg bullmq json-logic-js @maxhub/max-bot-api
 npm i -D typescript tsx @types/node @types/pg vitest pino-pretty
 npx tsc --init
 ```
@@ -205,7 +222,7 @@ npx tsc --init
   `name → title`, нормализация `commentable`.
 - `src/store/` — Postgres (сессии, raw_updates, outbox), Redis (кэш, лимиты).
 - `src/worker.ts` — обработка очереди, outbox.
-- `scripts/check-content.mjs` — проверка сценария и каталога без сети.
+- `scripts/check-content.ts` — проверка сценария и каталога без сети.
 - `migrations/` — из `db/schema.sql`.
 
 Обязательно с первого дня:
@@ -289,7 +306,8 @@ npx tsc --init
   `cmd /c npm ...`; не меняйте политику без нужды.
 - Node v24.21.0, npm 11.19.0.
 - Python с PyYAML есть — использовался для валидации YAML.
-- `C:\projects` пока **не git-репозиторий**.
+- `C:\projects` — git-репозиторий, remote `origin` =
+  `https://github.com/IvanBurtsev/Helpmax` (ветка `main`).
 - Временные файлы аудита: `%TEMP%\femida-documents.js`, `%TEMP%\femida-reghelp.js`,
   `%TEMP%\opencode\extract-catalog.js`. Там может быть код/данные сайта — после
   аудита удалить, в git не добавлять.

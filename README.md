@@ -2,8 +2,9 @@
 
 > Если вы агент, который продолжает работу — сначала прочитайте `AGENTS.md`.
 
-Статус: **проектирование (v0.2, ревизия 19.11.2026)**. Кода бота ещё нет,
-есть архитектура, контентная модель и проверяемый пример сценария.
+Статус: **ревизия 3 (19.11.2026)**. Есть архитектура, контентная модель,
+проверяемый пример сценария и собранный каркас: конфиг, каталог, движок и тесты.
+Транспорт MAX и хранилища — следующие шаги.
 
 > Документация сверена с официальным API MAX 19.11.2026:
 > <https://dev.max.ru/docs-api/>. Базовый URL — `https://platform-api2.max.ru`,
@@ -52,13 +53,13 @@
 | Очередь | Redis + BullMQ | минимальная инфраструктура на старте |
 | БД | PostgreSQL 16 | JSONB для ответов и определений сценариев |
 | Валидация | zod | один источник типов для API и вебхука |
-| Условия | `jsonlogic` | безопасные выражения вместо `eval` |
+| Условия | `json-logic-js` | безопасные выражения вместо `eval` (пакет `jsonlogic` сломан) |
 | Логи | pino + OpenTelemetry | структурированные логи, трейсы |
 | Деплой | Docker + nginx/Traefik | 2+ инстанса за балансировщиком |
 | Хостинг | Yandex Cloud / Selectel / VK Cloud | РФ, 152-ФЗ, сертификаты, WAF |
 | Админка | Next.js (или React + API) | редактирование сценариев и документов |
 
-## Структура репозитория (план)
+## Структура репозитория
 
 ```
 .
@@ -66,7 +67,9 @@
 ├── .gitignore
 ├── AGENTS.md               # точка входа для следующего агента
 ├── README.md
-├── package.json            # пока только dev-зависимость yaml и скрипт проверки
+├── package.json            # скрипты: dev, build, start, typecheck, test, check:content
+├── tsconfig.json           # проверка типов (src + test + scripts)
+├── tsconfig.build.json     # сборка src → dist
 ├── docs/
 │   ├── product.md          # продукт, пользователи, сценарии, метрики
 │   ├── site-audit.md       # что уже есть на сайте (аудит 19.11.2026)
@@ -76,15 +79,21 @@
 │   ├── security.md         # угрозы, вебхук, лимиты, 152-ФЗ, LLM
 │   ├── operations.md       # логи, метрики, кэш, SLO, runbook
 │   ├── integration.md      # сайт, deep links, API, CRM
-│   └── review-2026-11-19.md # что исправлено при ревизии
+│   └── review-2026-11-19.md # что исправлено при ревизиях
 ├── content/
 │   ├── catalog.json        # реальный каталог документов с сайта (46 шт.)
 │   └── scenarios/
 │       └── example.yaml    # пример catalog-driven сценария (черновик, требует юриста)
 ├── db/schema.sql           # схема БД
 ├── scripts/
-│   └── check-content.mjs   # проверка сценария и каталога без сети
-└── src/                    # появится на этапе реализации
+│   └── check-content.ts    # проверка сценария и каталога без сети
+├── src/
+│   ├── config.ts           # валидация env (zod)
+│   ├── env.ts              # загрузка .env
+│   ├── catalog.ts          # каталог: id→code, name→title, required
+│   ├── server.ts           # Fastify: /healthz, /webhook
+│   └── engine/             # scenario, conditions, checklist, progress, render, transition
+└── test/                   # vitest: контент + движок
 ```
 
 ## Переменные окружения
@@ -132,6 +141,17 @@ npm run check:content
 
 Секреты и локальные значения — в `.env`, шаблон — `.env.example`. `.env` в git
 не попадает (см. `.gitignore`).
+
+## Разработка
+
+```powershell
+npm run dev            # сервер с watch (tsx), читает .env
+npm run typecheck      # tsc по src + test + scripts
+npm run test           # vitest (контент + движок)
+npm run build          # сборка src → dist
+npm run start          # запуск собранного сервера
+npm run check:content  # проверка сценария и каталога без сети
+```
 
 ## Что нужно от вас, чтобы стартовать
 
