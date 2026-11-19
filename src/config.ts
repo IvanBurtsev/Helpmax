@@ -35,7 +35,7 @@ const envSchema = z
     LLM_API_KEY: z.string().min(1).optional(),
     LLM_BASE_URL: z.string().url().default("https://api.deepseek.com"),
     LLM_MODEL: z.string().min(1).default("deepseek-chat"),
-    LLM_MAX_TOKENS: z.coerce.number().int().min(1).max(4000).default(600),
+    LLM_MAX_TOKENS: z.coerce.number().int().min(1).max(4000).default(1200),
     LLM_TEMPERATURE: z.coerce.number().min(0).max(2).default(0.2),
     LLM_TIMEOUT_MS: z.coerce.number().int().min(1000).default(20000),
 

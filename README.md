@@ -160,7 +160,7 @@ LINK_SIGNING_KEY=           # Ed25519/HS256 ключ для ссылок на с
 LLM_API_KEY=
 LLM_BASE_URL=https://api.aitunnel.ru/v1
 LLM_MODEL=deepseek-v4.1-flash
-LLM_MAX_TOKENS=600
+LLM_MAX_TOKENS=1200
 LLM_TEMPERATURE=0.2
 LLM_TIMEOUT_MS=20000
 
